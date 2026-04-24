@@ -32,13 +32,23 @@ _files: dict[str, dict] = {}
 _combined: Optional[pd.DataFrame] = None
 
 
+def _strip_tz(df: pd.DataFrame) -> pd.DataFrame:
+    """Ensure timestamp column is always tz-naive before concat."""
+    if "timestamp" not in df.columns:
+        return df
+    if isinstance(df["timestamp"].dtype, pd.DatetimeTZDtype):
+        df = df.copy()
+        df["timestamp"] = df["timestamp"].dt.tz_convert("UTC").dt.tz_localize(None)
+    return df
+
+
 def _rebuild():
     global _combined
     if not _files:
         _combined = None
         return
     _combined = pd.concat(
-        [m["df"] for m in _files.values()], ignore_index=True
+        [_strip_tz(m["df"]) for m in _files.values()], ignore_index=True
     )
 
 
@@ -98,7 +108,12 @@ async def root():
 @app.post("/api/upload")
 async def upload(file: UploadFile = File(...)):
     content = await file.read()
-    df = parse_csv(content)
+    try:
+        df = parse_csv(content)
+    except HTTPException:
+        raise
+    except Exception as e:
+        raise HTTPException(status_code=400, detail=f"Parse error: {type(e).__name__}: {e}")
     file_id = str(uuid.uuid4())
     name = _unique_name(file.filename or "unknown")
     meta = _file_meta(file_id, name, df)

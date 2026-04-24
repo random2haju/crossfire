@@ -143,16 +143,16 @@ def _parse_fortigate_kv(content: bytes) -> pd.DataFrame:
     df = pd.DataFrame(rows)
     df.columns = [c.strip().lower() for c in df.columns]
 
-    # Merge date + time into timestamp if no single timestamp column
+    # Merge date + time into timestamp (FortiGate time= field may embed tz offset)
     if "timestamp" not in df.columns and "date" in df.columns and "time" in df.columns:
-        df["timestamp"] = df["date"] + " " + df["time"]
+        raw = df["date"] + " " + df["time"]
+        parsed = pd.to_datetime(raw, errors="coerce", utc=False)
+        df["timestamp"] = _force_tz_naive(parsed)
     elif "eventtime" in df.columns and "timestamp" not in df.columns:
-        # eventtime is unix epoch in FortiGate; convert and strip tz
-        df["timestamp"] = (
-            pd.to_datetime(pd.to_numeric(df["eventtime"], errors="coerce"), unit="s", utc=True)
-            .dt.tz_convert("UTC")
-            .dt.tz_localize(None)
+        parsed = pd.to_datetime(
+            pd.to_numeric(df["eventtime"], errors="coerce"), unit="s", utc=True
         )
+        df["timestamp"] = _force_tz_naive(parsed)
 
     # Sum sentbyte + rcvdbyte for total bytes if both present
     if "sentbyte" in df.columns and "rcvdbyte" in df.columns:
@@ -184,6 +184,22 @@ def _parse_fortigate_kv(content: bytes) -> pd.DataFrame:
     df.rename(columns={k: v for k, v in rename.items() if k in df.columns}, inplace=True)
 
     return df
+
+
+def _force_tz_naive(series: pd.Series) -> pd.Series:
+    """Convert any datetime series to tz-naive UTC. Works regardless of input tz state."""
+    if series.empty:
+        return series
+    try:
+        if isinstance(series.dtype, pd.DatetimeTZDtype):
+            return series.dt.tz_convert("UTC").dt.tz_localize(None)
+        return series
+    except Exception:
+        # Last resort: re-parse as strings, coerce tz via utc=True, then strip
+        try:
+            return pd.to_datetime(series.astype(str), errors="coerce", utc=True).dt.tz_localize(None)
+        except Exception:
+            return series
 
 
 # ── Format auto-detection ────────────────────────────────────────────
@@ -236,15 +252,12 @@ def parse_csv(content: bytes) -> pd.DataFrame:
     if df.empty:
         raise HTTPException(status_code=400, detail="No valid rows after parsing")
 
-    # Timestamp — parse then strip timezone so all files compare safely
-    if "timestamp" in df.columns and not pd.api.types.is_datetime64_any_dtype(df["timestamp"]):
-        df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce", utc=False)
-    elif "timestamp" not in df.columns:
+    # Timestamp — parse then always force tz-naive so files can be merged
+    if "timestamp" not in df.columns:
         df["timestamp"] = pd.NaT
-
-    if "timestamp" in df.columns:
-        if pd.api.types.is_datetime64tz_dtype(df["timestamp"]):
-            df["timestamp"] = df["timestamp"].dt.tz_convert("UTC").dt.tz_localize(None)
+    elif not pd.api.types.is_datetime64_any_dtype(df["timestamp"]):
+        df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
+    df["timestamp"] = _force_tz_naive(df["timestamp"])
 
     # Numeric columns
     for col in ("src_port", "dst_port", "bytes"):
