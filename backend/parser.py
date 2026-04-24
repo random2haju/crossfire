@@ -202,41 +202,92 @@ def _force_tz_naive(series: pd.Series) -> pd.Series:
             return series
 
 
+# ── BOM stripping ────────────────────────────────────────────────────
+def _strip_bom(content: bytes) -> bytes:
+    for bom, enc in [
+        (b'\xef\xbb\xbf', 'utf-8'),   # UTF-8 BOM
+        (b'\xff\xfe', 'utf-16'),        # UTF-16 LE
+        (b'\xfe\xff', 'utf-16'),        # UTF-16 BE
+    ]:
+        if content.startswith(bom):
+            if enc == 'utf-8':
+                return content[len(bom):]
+            return content.decode(enc, errors='replace').encode('utf-8')
+    return content
+
+
 # ── Format auto-detection ────────────────────────────────────────────
 def _is_fortigate_kv(content: bytes) -> bool:
-    # Check first non-empty line for key=value pattern
+    """Return True if the file looks like FortiGate space-separated key=value logs."""
     try:
-        head = content[:2048].decode("utf-8", errors="replace")
+        head = content[:8192].decode("utf-8", errors="replace")
     except Exception:
         return False
-    for line in head.splitlines():
+
+    kv_lines = 0
+    for line in head.splitlines()[:30]:   # inspect up to 30 lines
         line = line.strip()
         if not line or line.startswith("#"):
             continue
-        # FortiGate lines always start with date= or devname= or logid=
-        if re.match(r'^(date|devname|logid|eventtime)=', line):
+        # Definitive FortiGate markers
+        if re.match(r'^(date|devname|logid|eventtime|type)=', line):
             return True
-        # Generic: if >5 key=value pairs and no comma separation → likely kv
         kv_count = len(_KV_RE.findall(line))
         comma_count = line.count(",")
-        if kv_count > 5 and comma_count < kv_count // 2:
-            return True
-        break
+        # A kv line has many key=value pairs and few bare commas
+        if kv_count >= 5 and comma_count < kv_count // 2:
+            kv_lines += 1
+            if kv_lines >= 2:
+                return True
+
     return False
+
+
+def _try_csv(content: bytes) -> "pd.DataFrame | None":
+    """Try to parse as CSV with comma, semicolon, or tab separator. Skip bad lines."""
+    for sep in (',', ';', '\t'):
+        try:
+            df = pd.read_csv(
+                io.BytesIO(content),
+                dtype=str,
+                na_filter=False,
+                sep=sep,
+                on_bad_lines='skip',
+                engine='python',      # python engine is more tolerant
+            )
+            if len(df.columns) > 1:   # at least 2 columns = looks like real CSV
+                return df
+        except Exception:
+            continue
+    return None
 
 
 # ── Main entry point ─────────────────────────────────────────────────
 def parse_csv(content: bytes) -> pd.DataFrame:
+    content = _strip_bom(content)
+
+    df = None
+    parse_error = None
+
     if _is_fortigate_kv(content):
         df = _parse_fortigate_kv(content)
     else:
-        try:
-            df = pd.read_csv(io.BytesIO(content), dtype=str, na_filter=False)
-        except Exception as e:
-            raise HTTPException(status_code=400, detail=f"CSV parse error: {e}")
+        df = _try_csv(content)
+        if df is not None:
+            df.columns = [c.strip().lower() for c in df.columns]
+            df.rename(columns=COLUMN_ALIASES, inplace=True)
+        else:
+            # CSV failed — try kv as last resort (handles mis-detected files)
+            try:
+                df = _parse_fortigate_kv(content)
+            except Exception as e:
+                parse_error = str(e)
 
-        df.columns = [c.strip().lower() for c in df.columns]
-        df.rename(columns=COLUMN_ALIASES, inplace=True)
+    if df is None:
+        raise HTTPException(
+            status_code=400,
+            detail=f"Could not parse file as CSV or FortiGate log. {parse_error or ''}"
+        )
 
     # ── From here, normalization is shared ──────────────────────────
 
