@@ -412,6 +412,186 @@ body {
 .toast.toast-error   { border-color: #f44336; color: #ef9a9a; }
 .toast.hidden { display: none; }
 
+/* ===== TOPOLOGY MODAL ===== */
+.topo-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(0,0,0,0.6);
+  z-index: 1000;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  backdrop-filter: blur(3px);
+}
+.topo-overlay.hidden { display: none; }
+
+.topo-modal {
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  width: min(860px, 96vw);
+  max-height: 90vh;
+  overflow-y: auto;
+  padding: 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.topo-header { position: relative; }
+.topo-header h2 { font-size: 16px; font-weight: 600; margin-bottom: 4px; }
+.topo-subtitle { font-size: 12px; color: var(--text-secondary); line-height: 1.5; }
+.topo-close-btn {
+  position: absolute;
+  top: 0; right: 0;
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  font-size: 16px;
+  cursor: pointer;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+.topo-close-btn:hover { background: var(--bg-hover); color: var(--text-primary); }
+
+/* Architecture diagram */
+.topo-diagram {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  overflow-x: auto;
+  padding-bottom: 4px;
+}
+
+.topo-diagram-row {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  width: 100%;
+}
+
+.topo-zone {
+  padding: 10px 14px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  text-align: center;
+  min-width: 60px;
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+.topo-zone-wan  { background: #2a2a3a; border: 1px solid #555; color: #aaa; }
+.topo-zone-it   { background: var(--zone-it); border: 1px solid var(--zone-it-border); color: #7ab3e0; }
+.topo-zone-dmz  { background: var(--zone-dmz); border: 1px solid var(--zone-dmz-border); color: #d4c058; }
+.topo-zone-ot   { background: var(--zone-ot); border: 1px solid var(--zone-ot-border); color: #e07a7a; }
+
+/* Connector lines between zones */
+.topo-connector {
+  flex: 0 0 16px;
+  height: 2px;
+  background: var(--border);
+  position: relative;
+}
+
+.topo-dropzone {
+  flex: 1;
+  min-width: 110px;
+  min-height: 70px;
+  border: 2px dashed var(--border);
+  border-radius: 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-start;
+  padding: 6px 8px;
+  gap: 5px;
+  transition: border-color 0.15s, background 0.15s;
+  background: var(--bg-tertiary);
+  position: relative;
+}
+.topo-dropzone.drag-over {
+  border-color: var(--accent-blue);
+  background: rgba(74,128,240,0.08);
+}
+
+.topo-pos-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  color: var(--text-muted);
+  white-space: nowrap;
+  margin-bottom: 4px;
+}
+
+.topo-bypass-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 6px;
+  width: 100%;
+}
+.topo-bypass-label {
+  font-size: 11px;
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.topo-dropzone-inline {
+  flex: 0 0 160px;
+  min-height: 56px;
+}
+
+/* Device chips */
+.topo-chip {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 4px 10px;
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  border-radius: 16px;
+  font-size: 11px;
+  color: var(--text-primary);
+  cursor: grab;
+  user-select: none;
+  transition: border-color 0.15s, opacity 0.15s;
+}
+.topo-chip:hover { border-color: var(--accent-blue); }
+.topo-chip.dragging { opacity: 0.4; }
+.topo-chip-rm {
+  font-size: 13px;
+  line-height: 1;
+  color: var(--text-muted);
+  cursor: pointer;
+  margin-left: 2px;
+}
+.topo-chip-rm:hover { color: var(--edge-deny); }
+
+/* Unassigned pool */
+.topo-pool-section { display: flex; flex-direction: column; gap: 6px; }
+.topo-pool-label { font-size: 11px; color: var(--text-secondary); font-weight: 500; }
+.topo-pool {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  min-height: 48px;
+  padding: 10px;
+  border: 2px dashed var(--border);
+  border-radius: 8px;
+  background: var(--bg-primary);
+  transition: border-color 0.15s;
+}
+.topo-pool.drag-over { border-color: var(--accent-blue); }
+.topo-empty { font-size: 11px; color: var(--text-muted); align-self: center; }
+
+.topo-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
+  padding-top: 4px;
+  border-top: 1px solid var(--border);
+}
+
 /* ===== SCROLLBAR ===== */
 ::-webkit-scrollbar { width: 6px; height: 6px; }
 ::-webkit-scrollbar-track { background: var(--bg-primary); }

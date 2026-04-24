@@ -2,6 +2,7 @@ import { initGraph, renderGraph, setColorMode, getCy } from './graph.js';
 import { initFilters, getParams, resetFilters, populateFilterOptions } from './filters.js';
 import { animation } from './animation.js';
 import { exportCSV, exportPNG } from './export.js';
+import { initTopologyModal, setKnownDevices, getDevicePosition, wireDragDrop, POSITIONS } from './topology.js';
 
 let currentMode = 'host';
 
@@ -11,6 +12,8 @@ document.addEventListener('DOMContentLoaded', () => {
   initFilters(fetchGraph);
   bindToolbar();
   bindDetailTabs();
+  initTopologyModal(() => {});  // onChange: could re-render graph in future
+  wireDragDrop();
 });
 
 // ── Toolbar bindings ─────────────────────────────────────────────────
@@ -91,6 +94,7 @@ async function handleUpload(file) {
 
     showToast(`Loaded ${data.record_count} records from ${file.name}`, 'success');
     populateFilterOptions(data);
+    setKnownDevices(data.devices || []);
     document.getElementById('empty-state').classList.add('hidden');
     await fetchGraph(getParams());
     await fetchSummary();
@@ -169,6 +173,21 @@ function handleEdgeClick(data) {
   content.classList.remove('hidden');
   const actionBadge = `<span class="badge badge-${data.action}">${data.action}</span>`;
   const allowPct = data.count > 0 ? Math.round(data.allow_count / data.count * 100) : 0;
+  // Resolve firewall boundary context from topology map
+  const boundaryHtml = (() => {
+    const devices = data.devices || [];
+    const positioned = devices
+      .map((dev) => {
+        const posId = getDevicePosition(dev);
+        if (!posId) return null;
+        const pos = POSITIONS.find((p) => p.id === posId);
+        return pos ? `<div class="detail-kv"><span class="key">${dev}</span><span class="val">${pos.label} boundary</span></div>` : null;
+      })
+      .filter(Boolean);
+    if (!positioned.length) return '';
+    return `<div class="detail-section"><h4>Firewall Boundary</h4>${positioned.join('')}</div>`;
+  })();
+
   const policiesHtml = (data.policies || []).length ? `
     <div class="detail-section">
       <h4>Firewall Policies</h4>
@@ -199,6 +218,7 @@ function handleEdgeClick(data) {
       <h4>Destination Ports</h4>
       <div class="tag-list">${(data.ports || []).map(p => `<span class="tag">${p}</span>`).join('')}</div>
     </div>
+    ${boundaryHtml}
     ${policiesHtml}
   `;
 }

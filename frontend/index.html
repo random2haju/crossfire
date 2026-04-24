@@ -35,6 +35,8 @@
   </div>
 
   <div class="toolbar-right">
+    <button class="btn btn-secondary" id="btn-topology" title="Configure firewall topology">&#9850; Topology</button>
+
     <label class="toggle-label">
       <input type="checkbox" id="chk-animate" checked />
       <span>Animate</span>
@@ -175,6 +177,56 @@
     </div>
   </aside>
 
+</div>
+
+<!-- TOPOLOGY MODAL -->
+<div id="topo-overlay" class="topo-overlay hidden">
+  <div class="topo-modal">
+    <div class="topo-header">
+      <h2>Firewall Topology Builder</h2>
+      <p class="topo-subtitle">Drag devices onto the boundary where each firewall sits. This context appears in edge details and helps interpret traffic direction.</p>
+      <button id="topo-close" class="topo-close-btn">&#10005;</button>
+    </div>
+
+    <div class="topo-diagram">
+
+      <!-- Main topology row -->
+      <div class="topo-diagram-row">
+        <div class="topo-zone topo-zone-wan">WAN</div>
+        <div class="topo-dropzone" id="topo-pos-wan-it" data-pos="wan-it">
+          <div class="topo-pos-label">WAN ↔ IT</div>
+        </div>
+        <div class="topo-zone topo-zone-it">IT</div>
+        <div class="topo-dropzone" id="topo-pos-it-dmz" data-pos="it-dmz">
+          <div class="topo-pos-label">IT ↔ DMZ</div>
+        </div>
+        <div class="topo-zone topo-zone-dmz">DMZ</div>
+        <div class="topo-dropzone" id="topo-pos-dmz-ot" data-pos="dmz-ot">
+          <div class="topo-pos-label">DMZ ↔ OT</div>
+        </div>
+        <div class="topo-zone topo-zone-ot">OT</div>
+      </div>
+
+      <!-- WAN → DMZ direct bypass row -->
+      <div class="topo-bypass-row">
+        <div class="topo-bypass-label">WAN direct to DMZ:</div>
+        <div class="topo-dropzone topo-dropzone-inline" id="topo-pos-wan-dmz" data-pos="wan-dmz">
+          <div class="topo-pos-label">WAN ↔ DMZ</div>
+        </div>
+      </div>
+
+    </div>
+
+    <div class="topo-pool-section">
+      <div class="topo-pool-label">Unassigned devices — drag to a boundary above</div>
+      <div id="topo-unassigned" class="topo-pool"></div>
+    </div>
+
+    <div class="topo-footer">
+      <button id="topo-clear" class="btn btn-secondary">Clear All</button>
+      <button id="topo-save" class="btn btn-primary">Save Topology</button>
+    </div>
+  </div>
 </div>
 
 <!-- TOAST -->

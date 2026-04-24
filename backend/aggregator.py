@@ -71,10 +71,14 @@ def _policy_fields(g: pd.DataFrame) -> dict:
         sorted(g["policyid"].dropna().unique().tolist())
         if "policyid" in g.columns else []
     )
-    # Filter out empty strings
+    devices = (
+        sorted(g["device_name"].dropna().unique().tolist())
+        if "device_name" in g.columns else []
+    )
     policies  = [p for p in policies  if p and p != "nan"]
     policyids = [p for p in policyids if p and p != "nan"]
-    return {"policies": policies, "policyids": policyids}
+    devices   = [d for d in devices   if d and d != "nan"]
+    return {"policies": policies, "policyids": policyids, "devices": devices}
 
 
 def _zone_parent_id(zone: str) -> str:
@@ -149,7 +153,7 @@ def aggregate_host(df: pd.DataFrame) -> tuple[list[dict], list[dict]]:
         "target": r["dst_ip"],
         **{k: r[k] for k in ("count", "bytes_total", "action", "protocol", "protocols",
                               "ports", "allow_count", "deny_count", "weight",
-                              "policies", "policyids")},
+                              "policies", "policyids", "devices")},
     }} for r in edge_rows]
 
     return nodes, edges
@@ -220,7 +224,7 @@ def aggregate_subnet(df: pd.DataFrame, mask: int = 24) -> tuple[list[dict], list
         "target": r["dst_subnet"],
         **{k: r[k] for k in ("count", "bytes_total", "action", "protocol", "protocols",
                               "ports", "allow_count", "deny_count", "weight",
-                              "policies", "policyids")},
+                              "policies", "policyids", "devices")},
     }} for r in edge_rows]
 
     return nodes, edges
