@@ -1,7 +1,10 @@
 import io
+import logging
 import re
 import pandas as pd
 from fastapi import HTTPException
+
+log = logging.getLogger("crossfire")
 
 # ── Column alias map (CSV mode) ──────────────────────────────────────
 COLUMN_ALIASES: dict[str, str] = {
@@ -266,22 +269,31 @@ def _try_csv(content: bytes) -> "pd.DataFrame | None":
 def parse_csv(content: bytes) -> pd.DataFrame:
     content = _strip_bom(content)
 
+    is_kv = _is_fortigate_kv(content)
+    log.info(f"Format detection: {'FortiGate kv' if is_kv else 'CSV/unknown'}")
+
     df = None
     parse_error = None
 
-    if _is_fortigate_kv(content):
+    if is_kv:
+        log.info("Parsing as FortiGate kv")
         df = _parse_fortigate_kv(content)
     else:
+        log.info("Trying CSV parser (comma / semicolon / tab)")
         df = _try_csv(content)
         if df is not None:
+            log.info(f"CSV parsed OK: {len(df)} rows, {len(df.columns)} cols, sep detected")
             df.columns = [c.strip().lower() for c in df.columns]
             df.rename(columns=COLUMN_ALIASES, inplace=True)
         else:
-            # CSV failed — try kv as last resort (handles mis-detected files)
+            log.warning("CSV failed — trying FortiGate kv as fallback")
             try:
                 df = _parse_fortigate_kv(content)
+                log.info(f"kv fallback OK: {len(df)} rows")
             except Exception as e:
-                parse_error = str(e)
+                import traceback
+                parse_error = traceback.format_exc()
+                log.error(f"kv fallback failed: {parse_error}")
 
     if df is None:
         raise HTTPException(

@@ -1,4 +1,5 @@
 import io
+import logging
 import uuid
 from pathlib import Path
 from typing import Optional
@@ -14,6 +15,17 @@ from .aggregator import apply_filters, aggregate_host, aggregate_subnet, aggrega
 from .insights import compute_summary
 
 FRONTEND_DIR = Path(__file__).parent.parent / "frontend"
+LOG_FILE = Path(__file__).parent.parent / "crossfire_debug.log"
+
+logging.basicConfig(
+    level=logging.DEBUG,
+    format="%(asctime)s [%(levelname)s] %(message)s",
+    handlers=[
+        logging.FileHandler(LOG_FILE, encoding="utf-8"),
+        logging.StreamHandler(),
+    ],
+)
+log = logging.getLogger("crossfire")
 
 app = FastAPI(title="OT Traffic Visualizer")
 
@@ -108,11 +120,18 @@ async def root():
 @app.post("/api/upload")
 async def upload(file: UploadFile = File(...)):
     content = await file.read()
+    size_mb = len(content) / 1_048_576
+    log.info(f"Upload started: '{file.filename}' ({size_mb:.1f} MB)")
+    log.debug(f"First 300 bytes: {content[:300]!r}")
     try:
         df = parse_csv(content)
-    except HTTPException:
+        log.info(f"Parse OK: {len(df)} rows, cols={list(df.columns)}")
+    except HTTPException as e:
+        log.error(f"Parse HTTPException: {e.detail}")
         raise
     except Exception as e:
+        import traceback
+        log.error(f"Parse unexpected error: {traceback.format_exc()}")
         raise HTTPException(status_code=400, detail=f"Parse error: {type(e).__name__}: {e}")
     file_id = str(uuid.uuid4())
     name = _unique_name(file.filename or "unknown")
@@ -200,6 +219,16 @@ async def get_graph(
         "time_min": ts.min().isoformat() if ts.notna().any() else None,
         "time_max": ts.max().isoformat() if ts.notna().any() else None,
     }
+
+
+@app.get("/api/debug/log")
+async def debug_log(lines: int = 80):
+    """Return last N lines of the debug log file."""
+    if not LOG_FILE.exists():
+        return {"lines": ["No log file yet"]}
+    text = LOG_FILE.read_text(encoding="utf-8", errors="replace")
+    tail = text.splitlines()[-lines:]
+    return {"lines": tail, "path": str(LOG_FILE)}
 
 
 @app.get("/api/summary")
