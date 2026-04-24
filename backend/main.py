@@ -42,6 +42,22 @@ def _rebuild():
     )
 
 
+def _unique_name(name: str) -> str:
+    """Append a counter to the name if it already exists in the registry."""
+    existing = {m["name"] for m in _files.values()}
+    if name not in existing:
+        return name
+    stem, _, ext = name.rpartition(".")
+    base = stem if stem else name
+    suffix = f".{ext}" if stem else ""
+    i = 2
+    while True:
+        candidate = f"{base} ({i}){suffix}"
+        if candidate not in existing:
+            return candidate
+        i += 1
+
+
 def _file_meta(file_id: str, name: str, df: pd.DataFrame) -> dict:
     ts = df["timestamp"]
     return {
@@ -84,7 +100,8 @@ async def upload(file: UploadFile = File(...)):
     content = await file.read()
     df = parse_csv(content)
     file_id = str(uuid.uuid4())
-    meta = _file_meta(file_id, file.filename or "unknown", df)
+    name = _unique_name(file.filename or "unknown")
+    meta = _file_meta(file_id, name, df)
     _files[file_id] = {**meta, "df": df}
     _rebuild()
     return {"status": "ok", **meta, **_combined_meta(),

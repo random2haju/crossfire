@@ -147,10 +147,12 @@ def _parse_fortigate_kv(content: bytes) -> pd.DataFrame:
     if "timestamp" not in df.columns and "date" in df.columns and "time" in df.columns:
         df["timestamp"] = df["date"] + " " + df["time"]
     elif "eventtime" in df.columns and "timestamp" not in df.columns:
-        # eventtime is unix epoch in FortiGate
-        df["timestamp"] = pd.to_datetime(
-            pd.to_numeric(df["eventtime"], errors="coerce"), unit="s", utc=True
-        ).dt.tz_localize(None)
+        # eventtime is unix epoch in FortiGate; convert and strip tz
+        df["timestamp"] = (
+            pd.to_datetime(pd.to_numeric(df["eventtime"], errors="coerce"), unit="s", utc=True)
+            .dt.tz_convert("UTC")
+            .dt.tz_localize(None)
+        )
 
     # Sum sentbyte + rcvdbyte for total bytes if both present
     if "sentbyte" in df.columns and "rcvdbyte" in df.columns:
@@ -234,11 +236,15 @@ def parse_csv(content: bytes) -> pd.DataFrame:
     if df.empty:
         raise HTTPException(status_code=400, detail="No valid rows after parsing")
 
-    # Timestamp
+    # Timestamp — parse then strip timezone so all files compare safely
     if "timestamp" in df.columns and not pd.api.types.is_datetime64_any_dtype(df["timestamp"]):
-        df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce")
+        df["timestamp"] = pd.to_datetime(df["timestamp"], errors="coerce", utc=False)
     elif "timestamp" not in df.columns:
         df["timestamp"] = pd.NaT
+
+    if "timestamp" in df.columns:
+        if pd.api.types.is_datetime64tz_dtype(df["timestamp"]):
+            df["timestamp"] = df["timestamp"].dt.tz_convert("UTC").dt.tz_localize(None)
 
     # Numeric columns
     for col in ("src_port", "dst_port", "bytes"):

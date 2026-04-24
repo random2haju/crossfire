@@ -85,17 +85,31 @@ def _zone_parent_id(zone: str) -> str:
     return f"{zone.lower()}-zone"
 
 
-def _build_zone_nodes() -> list[dict]:
-    return [
+def _build_zone_nodes(extra_zones: set[str] | None = None) -> list[dict]:
+    """Return compound container nodes for IT/DMZ/OT plus any extra zones found in the data."""
+    base = [
         {"data": {"id": "it-zone",  "label": "IT",  "zone": "IT",  "isZone": True}},
         {"data": {"id": "dmz-zone", "label": "DMZ", "zone": "DMZ", "isZone": True}},
         {"data": {"id": "ot-zone",  "label": "OT",  "zone": "OT",  "isZone": True}},
     ]
+    known = {"IT", "DMZ", "OT"}
+    for z in sorted(extra_zones or set()):
+        if z not in known:
+            base.append({"data": {
+                "id": f"{z.lower()}-zone",
+                "label": z,
+                "zone": z,
+                "isZone": True,
+                "isExtra": True,   # frontend uses this for grey styling
+            }})
+    return base
 
 
 def aggregate_host(df: pd.DataFrame) -> tuple[list[dict], list[dict]]:
     if df.empty:
         return _build_zone_nodes(), []
+
+    all_zones = set(df["src_zone"].tolist()) | set(df["dst_zone"].tolist())
 
     # Aggregate edges
     grp = df.groupby(["src_ip", "dst_ip", "src_zone", "dst_zone"])
@@ -143,7 +157,7 @@ def aggregate_host(df: pd.DataFrame) -> tuple[list[dict], list[dict]]:
     for n in node_map.values():
         n["size"] = round(_scale(n["degree"], mn, mx, 20, 60))
 
-    zone_nodes = _build_zone_nodes()
+    zone_nodes = _build_zone_nodes(all_zones)
     host_nodes = [{"data": n} for n in node_map.values()]
     nodes = zone_nodes + host_nodes
 
@@ -171,6 +185,7 @@ def aggregate_subnet(df: pd.DataFrame, mask: int = 24) -> tuple[list[dict], list
     if df.empty:
         return _build_zone_nodes(), []
 
+    all_zones = set(df["src_zone"].tolist()) | set(df["dst_zone"].tolist())
     df = df.copy()
     df["src_subnet"] = df["src_ip"].apply(lambda ip: _ip_to_subnet(ip, mask))
     df["dst_subnet"] = df["dst_ip"].apply(lambda ip: _ip_to_subnet(ip, mask))
@@ -214,7 +229,7 @@ def aggregate_subnet(df: pd.DataFrame, mask: int = 24) -> tuple[list[dict], list
     for n in node_map.values():
         n["size"] = round(_scale(n["degree"], mn, mx, 30, 80))
 
-    zone_nodes = _build_zone_nodes()
+    zone_nodes = _build_zone_nodes(all_zones)
     subnet_nodes = [{"data": n} for n in node_map.values()]
     nodes = zone_nodes + subnet_nodes
 

@@ -111,6 +111,11 @@ function buildStylesheet() {
       selector: 'node[zone="OT"][?isZone]',
       style: { 'background-color': '#3a1a1a', 'border-color': '#b54a4a' },
     },
+    // Extra / unknown zones — neutral grey
+    {
+      selector: 'node[?isZone][?isExtra]',
+      style: { 'background-color': '#2a2a2a', 'border-color': '#666', 'border-style': 'dashed' },
+    },
     // Host/subnet child nodes (inside compound zones)
     {
       selector: 'node:child',
@@ -345,11 +350,24 @@ function runLayout() {
   // Host / subnet mode: position child nodes within each zone column
   const w = cy.container().offsetWidth;
   const h = cy.container().offsetHeight;
-  const zoneCols = { 'it-zone': w * 0.17, 'dmz-zone': w * 0.5, 'ot-zone': w * 0.83 };
   const spacing = 75;
 
+  // Collect all zone parent ids in display order (standard first, extra at the end)
+  const standardZones = ['it-zone', 'dmz-zone', 'ot-zone'];
+  const extraZones = cy.nodes('[?isZone][?isExtra]').map((n) => n.id());
+  const allZoneIds = [...standardZones, ...extraZones];
+  const totalZones = allZoneIds.filter((id) => cy.getElementById(id).length).length;
+  const zoneCols = {};
+  let col = 0;
+  allZoneIds.forEach((id) => {
+    if (cy.getElementById(id).length) {
+      zoneCols[id] = (col + 0.5) * (w / totalZones);
+      col++;
+    }
+  });
+
   cy.startBatch();
-  ['it-zone', 'dmz-zone', 'ot-zone'].forEach((zoneId) => {
+  allZoneIds.forEach((zoneId) => {
     const zNode = cy.getElementById(zoneId);
     if (!zNode.length) return;
     const children = zNode.children();
