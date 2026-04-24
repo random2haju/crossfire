@@ -42,6 +42,44 @@ app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR)), name="static")
 _files: dict[str, dict] = {}
 # Concatenated view rebuilt on every add/remove
 _combined: Optional[pd.DataFrame] = None
+# Topology map: {device_name: position_id}
+_topology: dict[str, str] = {}
+
+# Zone remapping per firewall boundary position.
+# After normalize_zone converts raw interface roles (lan→IT, dmz→DMZ, wan→WAN),
+# this table corrects them based on where the firewall actually sits.
+POSITION_ZONE_REMAP: dict[str, dict[str, str]] = {
+    # Firewall sits between WAN and IT — lan=IT, wan=WAN. No correction needed.
+    'wan-it':  {'IT': 'IT',  'DMZ': 'DMZ', 'OT': 'OT',  'WAN': 'WAN'},
+    # Firewall sits between IT and DMZ — lan=IT, dmz=DMZ. Already correct.
+    'it-dmz':  {'IT': 'IT',  'DMZ': 'DMZ', 'OT': 'OT',  'WAN': 'WAN'},
+    # Firewall sits between WAN and DMZ — its "lan" is actually DMZ.
+    'wan-dmz': {'IT': 'DMZ', 'DMZ': 'WAN', 'OT': 'OT',  'WAN': 'WAN'},
+    # Firewall sits between DMZ and OT — its "lan" is DMZ, its "dmz" is OT.
+    'dmz-ot':  {'IT': 'DMZ', 'DMZ': 'OT',  'OT': 'OT',  'WAN': 'WAN'},
+}
+
+
+def apply_topology_remap(df: pd.DataFrame) -> pd.DataFrame:
+    """Remap src_zone/dst_zone per device based on stored topology positions."""
+    if not _topology or df.empty:
+        return df
+    df = df.copy()
+    for device, position in _topology.items():
+        remap = POSITION_ZONE_REMAP.get(position)
+        if not remap:
+            continue
+        mask = df["device_name"] == device
+        if not mask.any():
+            continue
+        df.loc[mask, "src_zone"] = df.loc[mask, "src_zone"].map(
+            lambda z, r=remap: r.get(z, z)
+        )
+        df.loc[mask, "dst_zone"] = df.loc[mask, "dst_zone"].map(
+            lambda z, r=remap: r.get(z, z)
+        )
+        log.info(f"Topology remap applied: {device} @ {position}")
+    return df
 
 
 def _strip_tz(df: pd.DataFrame) -> pd.DataFrame:
@@ -204,6 +242,7 @@ async def get_graph(
         "cross_zone_only": cross_zone_only,
     }
     filtered = apply_filters(_combined.copy(), params)
+    filtered = apply_topology_remap(filtered)
 
     if mode == "subnet":
         nodes, edges = aggregate_subnet(filtered, mask=subnet_mask)
@@ -219,6 +258,19 @@ async def get_graph(
         "time_min": ts.min().isoformat() if ts.notna().any() else None,
         "time_max": ts.max().isoformat() if ts.notna().any() else None,
     }
+
+
+@app.post("/api/topology")
+async def save_topology(data: dict):
+    global _topology
+    _topology = data.get("topology", {})
+    log.info(f"Topology updated: {_topology}")
+    return {"status": "ok", "devices_mapped": len(_topology)}
+
+
+@app.get("/api/topology")
+async def get_topology_state():
+    return {"topology": _topology, "remap_table": POSITION_ZONE_REMAP}
 
 
 @app.get("/api/debug/log")
@@ -263,6 +315,7 @@ async def export_csv(
         "cross_zone_only": cross_zone_only,
     }
     filtered = apply_filters(_combined.copy(), params)
+    filtered = apply_topology_remap(filtered)
     buf = io.StringIO()
     filtered.to_csv(buf, index=False)
     buf.seek(0)

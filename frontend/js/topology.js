@@ -24,9 +24,20 @@ export function loadTopology() {
   return _map;
 }
 
+export async function pushTopologyToBackend() {
+  try {
+    await fetch('/api/topology', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ topology: _map }),
+    });
+  } catch (e) {
+    console.warn('Could not sync topology to backend:', e);
+  }
+}
+
 function saveTopology() {
   localStorage.setItem(STORAGE_KEY, JSON.stringify(_map));
-  _onChange?.(_map);
 }
 
 // ── Public API ────────────────────────────────────────────────────
@@ -50,10 +61,12 @@ export function initTopologyModal(onChange) {
     if (e.target.id === 'topo-overlay') closeModal();
   });
   document.getElementById('topo-close').addEventListener('click', closeModal);
-  document.getElementById('topo-save').addEventListener('click', () => {
+  document.getElementById('topo-save').addEventListener('click', async () => {
     saveTopology();
+    await pushTopologyToBackend();
     closeModal();
-    showToast('Topology saved');
+    showToast('Topology saved — graph will update');
+    _onChange?.(_map);
   });
   document.getElementById('topo-clear').addEventListener('click', () => {
     _map = {};

@@ -2,7 +2,7 @@ import { initGraph, renderGraph, setColorMode, getCy } from './graph.js';
 import { initFilters, getParams, resetFilters, populateFilterOptions } from './filters.js';
 import { animation } from './animation.js';
 import { exportCSV, exportPNG } from './export.js';
-import { initTopologyModal, setKnownDevices, getDevicePosition, wireDragDrop, POSITIONS } from './topology.js';
+import { initTopologyModal, setKnownDevices, getDevicePosition, wireDragDrop, POSITIONS, pushTopologyToBackend } from './topology.js';
 import { initFileManager } from './filemanager.js';
 
 let currentMode = 'host';
@@ -13,8 +13,14 @@ document.addEventListener('DOMContentLoaded', () => {
   initFilters(fetchGraph);
   bindToolbar();
   bindDetailTabs();
-  initTopologyModal(() => {});
+  initTopologyModal(async () => {
+    // Topology changed — refresh graph with remapped zones
+    await fetchGraph(getParams());
+    await fetchSummary();
+  });
   wireDragDrop();
+  // Restore topology to backend (survives server restarts)
+  pushTopologyToBackend();
   initFileManager(onDataChanged);
 
   // Wire empty-state Files button
