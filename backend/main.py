@@ -55,8 +55,8 @@ POSITION_ZONE_REMAP: dict[str, dict[str, str]] = {
     'it-dmz':  {'IT': 'IT',  'DMZ': 'DMZ', 'OT': 'OT',  'WAN': 'WAN'},
     # Firewall sits between WAN and DMZ — its "lan" is actually DMZ.
     'wan-dmz': {'IT': 'DMZ', 'DMZ': 'WAN', 'OT': 'OT',  'WAN': 'WAN'},
-    # Firewall sits between DMZ and OT — its "lan" is DMZ, its "dmz" is OT.
-    'dmz-ot':  {'IT': 'DMZ', 'DMZ': 'OT',  'OT': 'OT',  'WAN': 'WAN'},
+    # Firewall sits between DMZ and OT — its "lan" is OT, its "dmz" is DMZ.
+    'dmz-ot':  {'IT': 'OT',  'DMZ': 'DMZ', 'OT': 'OT',  'WAN': 'WAN'},
 }
 
 
