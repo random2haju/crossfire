@@ -1,0 +1,180 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>OT Traffic Visualizer</title>
+  <link rel="stylesheet" href="/static/css/style.css" />
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/cytoscape/3.29.2/cytoscape.min.js"></script>
+</head>
+<body>
+
+<!-- TOOLBAR -->
+<header class="toolbar">
+  <div class="toolbar-left">
+    <span class="app-title">OT Traffic Visualizer</span>
+    <label class="btn btn-primary" for="file-input" title="Import CSV firewall log">
+      &#8679; Import CSV
+      <input type="file" id="file-input" accept=".csv" style="display:none" />
+    </label>
+    <button class="btn btn-secondary" id="btn-reset-filters" title="Reset all filters">Reset Filters</button>
+  </div>
+
+  <div class="toolbar-center">
+    <label class="toolbar-label">View:</label>
+    <div class="btn-group" id="mode-group">
+      <button class="btn btn-mode active" data-mode="host">Host-to-Host</button>
+      <button class="btn btn-mode" data-mode="subnet">Subnet</button>
+      <button class="btn btn-mode" data-mode="zone">Zone Summary</button>
+    </div>
+    <label class="toolbar-label" style="margin-left:16px">Color by:</label>
+    <div class="btn-group" id="color-group">
+      <button class="btn btn-mode active" data-color="action">Action</button>
+      <button class="btn btn-mode" data-color="protocol">Protocol</button>
+    </div>
+  </div>
+
+  <div class="toolbar-right">
+    <label class="toggle-label">
+      <input type="checkbox" id="chk-animate" checked />
+      <span>Animate</span>
+    </label>
+    <label class="toggle-label">
+      <input type="checkbox" id="chk-cross-zone" />
+      <span>Cross-zone only</span>
+    </label>
+    <div class="dropdown">
+      <button class="btn btn-secondary">Export &#9660;</button>
+      <div class="dropdown-menu">
+        <button id="btn-export-csv">Export CSV</button>
+        <button id="btn-export-png">Export PNG</button>
+      </div>
+    </div>
+  </div>
+</header>
+
+<!-- MAIN LAYOUT -->
+<div class="main-layout">
+
+  <!-- LEFT SIDEBAR: FILTERS -->
+  <aside class="sidebar-left">
+    <div class="sidebar-section">
+      <h3>Filters</h3>
+
+      <label>Source Zone</label>
+      <select id="f-src-zone" multiple size="3">
+        <option value="">All</option>
+        <option value="IT">IT</option>
+        <option value="DMZ">DMZ</option>
+        <option value="OT">OT</option>
+      </select>
+
+      <label>Destination Zone</label>
+      <select id="f-dst-zone" multiple size="3">
+        <option value="">All</option>
+        <option value="IT">IT</option>
+        <option value="DMZ">DMZ</option>
+        <option value="OT">OT</option>
+      </select>
+
+      <label>Source IP</label>
+      <input type="text" id="f-src-ip" placeholder="e.g. 10.0.1" />
+
+      <label>Destination IP</label>
+      <input type="text" id="f-dst-ip" placeholder="e.g. 10.10.1" />
+
+      <label>Protocol</label>
+      <select id="f-protocol">
+        <option value="">All</option>
+        <option value="TCP">TCP</option>
+        <option value="UDP">UDP</option>
+        <option value="ICMP">ICMP</option>
+      </select>
+
+      <label>Destination Port</label>
+      <input type="number" id="f-dst-port" placeholder="e.g. 502" min="0" max="65535" />
+
+      <label>Action</label>
+      <select id="f-action">
+        <option value="">All</option>
+        <option value="allow">Allow</option>
+        <option value="deny">Deny</option>
+        <option value="drop">Drop</option>
+      </select>
+
+      <label>Device Name</label>
+      <input type="text" id="f-device" placeholder="e.g. FW-DMZ" />
+
+      <label>Subnet Mask (bits)</label>
+      <input type="number" id="f-subnet-mask" value="24" min="8" max="32" />
+    </div>
+
+    <div class="sidebar-section">
+      <h3>Time Range</h3>
+      <label>From</label>
+      <input type="datetime-local" id="f-time-start" />
+      <label>To</label>
+      <input type="datetime-local" id="f-time-end" />
+      <button class="btn btn-secondary btn-full" id="btn-set-time-range">Apply Time</button>
+    </div>
+
+    <div class="sidebar-section">
+      <h3>Cross-Zone Filter</h3>
+      <select id="f-cross-zone-pair">
+        <option value="">All flows</option>
+        <option value="IT,DMZ">IT → DMZ</option>
+        <option value="DMZ,OT">DMZ → OT</option>
+        <option value="OT,DMZ">OT → DMZ</option>
+        <option value="DMZ,IT">DMZ → IT</option>
+        <option value="IT,OT">IT → OT (suspicious)</option>
+        <option value="OT,IT">OT → IT</option>
+      </select>
+    </div>
+  </aside>
+
+  <!-- GRAPH CANVAS -->
+  <main class="graph-area">
+    <div id="cy"></div>
+    <div id="empty-state" class="empty-state">
+      <div class="empty-icon">&#128229;</div>
+      <p>Import a CSV firewall log to begin</p>
+      <label class="btn btn-primary" for="file-input">Import CSV</label>
+    </div>
+    <div id="status-bar" class="status-bar"></div>
+
+    <!-- Legend overlay -->
+    <div id="legend" class="legend hidden">
+      <div class="legend-title" id="legend-title">Color: Action</div>
+      <div id="legend-items"></div>
+    </div>
+  </main>
+
+  <!-- RIGHT PANEL: DETAILS + INSIGHTS -->
+  <aside class="sidebar-right">
+    <div class="tab-bar">
+      <button class="tab-btn active" data-tab="details">Details</button>
+      <button class="tab-btn" data-tab="insights">Insights</button>
+    </div>
+
+    <div id="tab-details" class="tab-content active">
+      <div id="detail-placeholder" class="detail-placeholder">
+        Click a node or edge to see details
+      </div>
+      <div id="detail-content" class="hidden"></div>
+    </div>
+
+    <div id="tab-insights" class="tab-content hidden">
+      <div id="insights-content">
+        <p class="muted">Load data to see insights</p>
+      </div>
+    </div>
+  </aside>
+
+</div>
+
+<!-- TOAST -->
+<div id="toast" class="toast hidden"></div>
+
+<script type="module" src="/static/js/app.js"></script>
+</body>
+</html>
