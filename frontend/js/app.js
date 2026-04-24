@@ -49,6 +49,14 @@ function bindToolbar() {
   // Animation toggle
   document.getElementById('chk-animate').addEventListener('change', (e) => {
     animation.setEnabled(e.target.checked);
+    document.getElementById('speed-control').style.opacity = e.target.checked ? '1' : '0.4';
+  });
+
+  // Animation speed slider
+  document.getElementById('anim-speed').addEventListener('input', (e) => {
+    const val = parseFloat(e.target.value);
+    animation.setSpeed(val);
+    document.getElementById('anim-speed-val').textContent = val.toFixed(1) + '×';
   });
 
   // Export
