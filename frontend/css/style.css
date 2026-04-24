@@ -412,6 +412,96 @@ body {
 .toast.toast-error   { border-color: #f44336; color: #ef9a9a; }
 .toast.hidden { display: none; }
 
+/* ===== DATASET BADGE ===== */
+.dataset-badge {
+  font-size: 11px;
+  color: var(--text-secondary);
+  padding: 3px 8px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg-tertiary);
+  white-space: nowrap;
+}
+
+/* ===== FILE MANAGER MODAL ===== */
+.fm-modal { max-width: 680px; }
+
+.fm-progress { display: flex; flex-direction: column; gap: 6px; }
+.fm-progress.hidden { display: none; }
+.fm-progress-track {
+  height: 6px;
+  background: var(--bg-tertiary);
+  border-radius: 3px;
+  overflow: hidden;
+}
+.fm-progress-fill {
+  height: 100%;
+  width: 0%;
+  background: var(--accent-blue);
+  border-radius: 3px;
+  transition: width 0.3s;
+}
+.fm-progress-label { font-size: 11px; color: var(--text-secondary); }
+
+.fm-empty {
+  text-align: center;
+  padding: 32px;
+  color: var(--text-muted);
+  font-size: 13px;
+  border: 2px dashed var(--border);
+  border-radius: 8px;
+}
+
+.fm-file-list { display: flex; flex-direction: column; gap: 6px; max-height: 360px; overflow-y: auto; }
+
+.fm-row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 12px;
+  background: var(--bg-tertiary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  transition: border-color 0.15s;
+}
+.fm-row:hover { border-color: #555; }
+.fm-row-main { flex: 1; min-width: 0; display: flex; flex-direction: column; gap: 5px; }
+
+.fm-filename {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--text-primary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.fm-meta { display: flex; flex-wrap: wrap; gap: 5px; }
+.fm-badge {
+  font-size: 10px;
+  padding: 1px 7px;
+  border-radius: 10px;
+  background: var(--bg-hover);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  white-space: nowrap;
+}
+.fm-badge-device { border-color: var(--accent-blue); color: #7ab3e0; }
+
+.fm-remove-btn {
+  flex-shrink: 0;
+  background: none;
+  border: 1px solid transparent;
+  color: var(--text-muted);
+  cursor: pointer;
+  font-size: 14px;
+  padding: 4px 8px;
+  border-radius: 4px;
+  transition: color 0.15s, border-color 0.15s;
+}
+.fm-remove-btn:hover { color: var(--edge-deny); border-color: var(--edge-deny); }
+
+.fm-total-label { font-size: 11px; color: var(--text-secondary); margin-right: auto; }
+
 /* ===== TOPOLOGY MODAL ===== */
 .topo-overlay {
   position: fixed;

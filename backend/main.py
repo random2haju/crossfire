@@ -1,4 +1,5 @@
 import io
+import uuid
 from pathlib import Path
 from typing import Optional
 
@@ -25,38 +26,108 @@ app.add_middleware(
 
 app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR)), name="static")
 
-# In-memory dataset
-_df: Optional[pd.DataFrame] = None
+# File registry: {file_id: {"df": DataFrame, "name": str, ...metadata}}
+_files: dict[str, dict] = {}
+# Concatenated view rebuilt on every add/remove
+_combined: Optional[pd.DataFrame] = None
 
+
+def _rebuild():
+    global _combined
+    if not _files:
+        _combined = None
+        return
+    _combined = pd.concat(
+        [m["df"] for m in _files.values()], ignore_index=True
+    )
+
+
+def _file_meta(file_id: str, name: str, df: pd.DataFrame) -> dict:
+    ts = df["timestamp"]
+    return {
+        "file_id": file_id,
+        "name": name,
+        "record_count": len(df),
+        "time_min": ts.min().isoformat() if ts.notna().any() else None,
+        "time_max": ts.max().isoformat() if ts.notna().any() else None,
+        "devices":   sorted(df["device_name"].unique().tolist()),
+        "zones":     sorted(set(df["src_zone"].tolist() + df["dst_zone"].tolist())),
+        "protocols": sorted(df["protocol"].unique().tolist()),
+        "actions":   sorted(df["action"].unique().tolist()),
+    }
+
+
+def _combined_meta() -> dict:
+    if _combined is None:
+        return {"devices": [], "zones": [], "protocols": [], "actions": [],
+                "time_min": None, "time_max": None}
+    ts = _combined["timestamp"]
+    return {
+        "devices":   sorted(_combined["device_name"].unique().tolist()),
+        "zones":     sorted(set(_combined["src_zone"].tolist() + _combined["dst_zone"].tolist())),
+        "protocols": sorted(_combined["protocol"].unique().tolist()),
+        "actions":   sorted(_combined["action"].unique().tolist()),
+        "time_min":  ts.min().isoformat() if ts.notna().any() else None,
+        "time_max":  ts.max().isoformat() if ts.notna().any() else None,
+    }
+
+
+# ── Routes ────────────────────────────────────────────────────────────
 
 @app.get("/", response_class=HTMLResponse)
 async def root():
-    html_path = FRONTEND_DIR / "index.html"
-    return html_path.read_text(encoding="utf-8")
+    return (FRONTEND_DIR / "index.html").read_text(encoding="utf-8")
 
 
 @app.post("/api/upload")
 async def upload(file: UploadFile = File(...)):
-    global _df
     content = await file.read()
-    _df = parse_csv(content)
-    ts = _df["timestamp"]
+    df = parse_csv(content)
+    file_id = str(uuid.uuid4())
+    meta = _file_meta(file_id, file.filename or "unknown", df)
+    _files[file_id] = {**meta, "df": df}
+    _rebuild()
+    return {"status": "ok", **meta, **_combined_meta(),
+            "total_records": len(_combined) if _combined is not None else 0,
+            "file_count": len(_files)}
+
+
+@app.get("/api/files")
+async def list_files():
+    return {
+        "files": [
+            {k: v for k, v in m.items() if k != "df"}
+            for m in _files.values()
+        ],
+        "total_records": len(_combined) if _combined is not None else 0,
+        **_combined_meta(),
+    }
+
+
+@app.delete("/api/files/{file_id}")
+async def delete_file(file_id: str):
+    if file_id not in _files:
+        raise HTTPException(status_code=404, detail="File not found")
+    del _files[file_id]
+    _rebuild()
     return {
         "status": "ok",
-        "record_count": len(_df),
-        "columns": _df.columns.tolist(),
-        "time_min": ts.min().isoformat() if ts.notna().any() else None,
-        "time_max": ts.max().isoformat() if ts.notna().any() else None,
-        "zones": sorted(set(_df["src_zone"].tolist() + _df["dst_zone"].tolist())),
-        "protocols": sorted(_df["protocol"].unique().tolist()),
-        "actions": sorted(_df["action"].unique().tolist()),
-        "devices": sorted(_df["device_name"].unique().tolist()),
+        "file_count": len(_files),
+        "total_records": len(_combined) if _combined is not None else 0,
+        **_combined_meta(),
     }
+
+
+@app.post("/api/files/clear")
+async def clear_files():
+    _files.clear()
+    _rebuild()
+    return {"status": "ok"}
 
 
 @app.get("/api/graph")
 async def get_graph(
-    mode: str = Query("host", description="host | subnet | zone"),
+    mode: str = Query("host"),
     subnet_mask: int = Query(24),
     time_start: Optional[str] = Query(None),
     time_end: Optional[str] = Query(None),
@@ -70,8 +141,7 @@ async def get_graph(
     device_name: Optional[str] = Query(None),
     cross_zone_only: bool = Query(False),
 ):
-    global _df
-    if _df is None:
+    if _combined is None:
         return {"nodes": [], "edges": [], "record_count": 0}
 
     params = {
@@ -82,7 +152,7 @@ async def get_graph(
         "action": action, "device_name": device_name,
         "cross_zone_only": cross_zone_only,
     }
-    filtered = apply_filters(_df.copy(), params)
+    filtered = apply_filters(_combined.copy(), params)
 
     if mode == "subnet":
         nodes, edges = aggregate_subnet(filtered, mask=subnet_mask)
@@ -93,8 +163,7 @@ async def get_graph(
 
     ts = filtered["timestamp"]
     return {
-        "nodes": nodes,
-        "edges": edges,
+        "nodes": nodes, "edges": edges,
         "record_count": len(filtered),
         "time_min": ts.min().isoformat() if ts.notna().any() else None,
         "time_max": ts.max().isoformat() if ts.notna().any() else None,
@@ -103,8 +172,7 @@ async def get_graph(
 
 @app.get("/api/summary")
 async def get_summary():
-    global _df
-    return compute_summary(_df)
+    return compute_summary(_combined)
 
 
 @app.get("/api/export")
@@ -122,8 +190,7 @@ async def export_csv(
     device_name: Optional[str] = Query(None),
     cross_zone_only: bool = Query(False),
 ):
-    global _df
-    if _df is None:
+    if _combined is None:
         raise HTTPException(status_code=400, detail="No data loaded")
 
     params = {
@@ -134,12 +201,10 @@ async def export_csv(
         "action": action, "device_name": device_name,
         "cross_zone_only": cross_zone_only,
     }
-    filtered = apply_filters(_df.copy(), params)
-
+    filtered = apply_filters(_combined.copy(), params)
     buf = io.StringIO()
     filtered.to_csv(buf, index=False)
     buf.seek(0)
-
     return StreamingResponse(
         iter([buf.getvalue()]),
         media_type="text/csv",

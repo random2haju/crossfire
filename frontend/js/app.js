@@ -3,6 +3,7 @@ import { initFilters, getParams, resetFilters, populateFilterOptions } from './f
 import { animation } from './animation.js';
 import { exportCSV, exportPNG } from './export.js';
 import { initTopologyModal, setKnownDevices, getDevicePosition, wireDragDrop, POSITIONS } from './topology.js';
+import { initFileManager } from './filemanager.js';
 
 let currentMode = 'host';
 
@@ -12,19 +13,18 @@ document.addEventListener('DOMContentLoaded', () => {
   initFilters(fetchGraph);
   bindToolbar();
   bindDetailTabs();
-  initTopologyModal(() => {});  // onChange: could re-render graph in future
+  initTopologyModal(() => {});
   wireDragDrop();
+  initFileManager(onDataChanged);
+
+  // Wire empty-state Files button
+  document.getElementById('btn-files-empty')?.addEventListener('click', () => {
+    document.getElementById('btn-files').click();
+  });
 });
 
 // ── Toolbar bindings ─────────────────────────────────────────────────
 function bindToolbar() {
-  // File import
-  document.getElementById('file-input').addEventListener('change', (e) => {
-    const file = e.target.files?.[0];
-    if (file) handleUpload(file);
-    e.target.value = '';
-  });
-
   // Reset
   document.getElementById('btn-reset-filters').addEventListener('click', () => {
     resetFilters();
@@ -82,24 +82,30 @@ function bindDetailTabs() {
   });
 }
 
-// ── Upload ───────────────────────────────────────────────────────────
-async function handleUpload(file) {
-  const form = new FormData();
-  form.append('file', file);
-  showToast('Uploading…', '');
-  try {
-    const res = await fetch('/api/upload', { method: 'POST', body: form });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.detail || 'Upload failed');
+// ── Called by file manager after any add/remove ──────────────────────
+async function onDataChanged(meta = {}) {
+  // Fetch fresh combined metadata
+  const res  = await fetch('/api/files');
+  const data = await res.json();
 
-    showToast(`Loaded ${data.record_count} records from ${file.name}`, 'success');
-    populateFilterOptions(data);
-    setKnownDevices(data.devices || []);
-    document.getElementById('empty-state').classList.add('hidden');
+  const hasData = (data.total_records || 0) > 0;
+  document.getElementById('empty-state').classList.toggle('hidden', hasData);
+
+  // Update dataset badge
+  const badge = document.getElementById('dataset-badge');
+  if (hasData) {
+    badge.textContent = `${(data.files || []).length} file${data.files.length !== 1 ? 's' : ''} · ${(data.total_records || 0).toLocaleString()} records`;
+    badge.classList.remove('hidden');
+  } else {
+    badge.classList.add('hidden');
+  }
+
+  populateFilterOptions(data);
+  setKnownDevices(data.devices || []);
+
+  if (hasData) {
     await fetchGraph(getParams());
     await fetchSummary();
-  } catch (err) {
-    showToast(err.message, 'error');
   }
 }
 

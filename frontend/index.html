@@ -12,12 +12,12 @@
 <!-- TOOLBAR -->
 <header class="toolbar">
   <div class="toolbar-left">
-    <span class="app-title">OT Traffic Visualizer</span>
-    <label class="btn btn-primary" for="file-input" title="Import CSV firewall log">
-      &#8679; Import CSV
-      <input type="file" id="file-input" accept=".csv" style="display:none" />
-    </label>
+    <span class="app-title">crossfire</span>
+    <button class="btn btn-primary" id="btn-files" title="Manage loaded log files">&#128193; Files</button>
+    <!-- Legacy single-import, still wired in filemanager.js -->
+    <input type="file" id="file-input" accept=".csv,.log,.txt" multiple style="display:none" />
     <button class="btn btn-secondary" id="btn-reset-filters" title="Reset all filters">Reset Filters</button>
+    <span id="dataset-badge" class="dataset-badge hidden"></span>
   </div>
 
   <div class="toolbar-center">
@@ -143,9 +143,9 @@
   <main class="graph-area">
     <div id="cy"></div>
     <div id="empty-state" class="empty-state">
-      <div class="empty-icon">&#128229;</div>
-      <p>Import a CSV firewall log to begin</p>
-      <label class="btn btn-primary" for="file-input">Import CSV</label>
+      <div class="empty-icon">&#128193;</div>
+      <p>Load firewall log files to begin</p>
+      <button class="btn btn-primary" id="btn-files-empty">&#128193; Open Files</button>
     </div>
     <div id="status-bar" class="status-bar"></div>
 
@@ -177,6 +177,32 @@
     </div>
   </aside>
 
+</div>
+
+<!-- FILE MANAGER MODAL -->
+<div id="fm-overlay" class="topo-overlay hidden">
+  <div class="topo-modal fm-modal">
+    <div class="topo-header">
+      <h2>Log Files</h2>
+      <p class="topo-subtitle">Load one or more CSV / FortiGate log files. Files are merged into a single dataset. Remove individual files without reloading others.</p>
+      <button id="fm-close" class="topo-close-btn">&#10005;</button>
+    </div>
+
+    <div id="fm-progress" class="fm-progress hidden">
+      <div class="fm-progress-track"><div id="fm-progress-bar" class="fm-progress-fill"></div></div>
+      <div id="fm-progress-label" class="fm-progress-label"></div>
+    </div>
+
+    <div id="fm-empty" class="fm-empty">No files loaded yet</div>
+    <div id="fm-file-list" class="fm-file-list"></div>
+
+    <div class="topo-footer">
+      <span id="fm-total" class="fm-total-label"></span>
+      <button id="fm-clear-btn" class="btn btn-secondary">Clear All</button>
+      <button id="fm-add-btn" class="btn btn-primary">&#8679; Add Files</button>
+      <input type="file" id="fm-file-input" accept=".csv,.log,.txt" multiple style="display:none" />
+    </div>
+  </div>
 </div>
 
 <!-- TOPOLOGY MODAL -->
