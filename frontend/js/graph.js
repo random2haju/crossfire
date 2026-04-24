@@ -194,13 +194,15 @@ function buildStylesheet() {
         'line-dash-offset': 0,
       },
     },
+    // Allow: long dashes look nearly solid but still animate with dash-offset
     {
       selector: 'edge[action="allow"]',
-      style: { 'line-style': 'solid' },
+      style: { 'line-style': 'dashed', 'line-dash-pattern': [20, 4] },
     },
+    // Deny/drop: short dashes clearly signal blocked traffic
     {
       selector: 'edge[action="deny"], edge[action="drop"]',
-      style: { 'line-style': 'dashed' },
+      style: { 'line-style': 'dashed', 'line-dash-pattern': [5, 5] },
     },
     // Selection
     {
