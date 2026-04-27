@@ -94,8 +94,8 @@ export function populateFilterOptions(meta) {
   // Populate protocol dropdown with options from loaded data
   const protoEl = document.getElementById('f-protocol');
   if (!protoEl) return;
-  const existingVals = ['', 'TCP', 'UDP', 'ICMP'];
-  const extra = (meta.protocols || []).filter(p => !existingVals.includes(p));
+  const existingVals = new Set(Array.from(protoEl.options).map(o => o.value));
+  const extra = (meta.protocols || []).filter(p => !existingVals.has(p));
   extra.forEach(p => {
     const opt = document.createElement('option');
     opt.value = p;
