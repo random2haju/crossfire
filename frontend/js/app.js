@@ -142,14 +142,12 @@ async function fetchGraph(params = {}) {
     if (flagSummary) flagSummary.textContent = '';
     renderGraph(data);
     updateStatusBar(data);
-    if (document.getElementById('tab-insights')?.classList.contains('active')) {
-      fetchSummary();
-    }
+    fetchSummary();
   } catch (err) {
     console.error('Graph fetch error:', err);
   }
-  // Outside try/catch so graph render errors don't suppress this
-  updateHuntingTab();
+  // Defer so Cytoscape finishes processing elements before we read them
+  setTimeout(updateHuntingTab, 0);
 }
 
 // ── Summary fetch ────────────────────────────────────────────────────
@@ -374,6 +372,7 @@ function renderInsights(data, eventsData = {}) {
   const el = document.getElementById('insights-content');
   if (!el) return;
 
+  const recordCount = data.record_count ?? 0;
   const crossZonePairs = Object.entries(data.cross_zone_totals || {});
   const maxCross = Math.max(...crossZonePairs.map(([,v]) => v), 1);
 
@@ -406,6 +405,10 @@ function renderInsights(data, eventsData = {}) {
     </div>`;
 
   el.innerHTML = `
+    <div style="font-size:11px;color:var(--text-muted);margin-bottom:12px;padding-bottom:8px;border-bottom:1px solid var(--border)">
+      ${recordCount.toLocaleString()} events match current filters
+    </div>
+
     <div class="insight-section">
       <h4>Top 10 Talkers (by bytes)</h4>
       <table class="insight-table">
