@@ -93,7 +93,9 @@ function bindDetailTabs() {
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
       document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
       btn.classList.add('active');
-      document.getElementById(`tab-${tab}`).classList.add('active');
+      const tabEl = document.getElementById(`tab-${tab}`);
+      tabEl.classList.remove('hidden');
+      tabEl.classList.add('active');
       if (tab === 'insights') fetchSummary();
       if (tab === 'hunting') updateHuntingTab();
     });
@@ -257,7 +259,9 @@ function updateHuntingTab() {
       document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
       document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
       document.querySelector('.tab-btn[data-tab="details"]').classList.add('active');
-      document.getElementById('tab-details').classList.add('active');
+      const detailsTab = document.getElementById('tab-details');
+      detailsTab.classList.remove('hidden');
+      detailsTab.classList.add('active');
       handleEdgeClick(edge.data());
     });
     item.addEventListener('mouseenter', () => { item.style.borderColor = '#ffc107'; });
