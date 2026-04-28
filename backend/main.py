@@ -241,8 +241,8 @@ async def get_graph(
         "action": action, "device_name": device_name,
         "cross_zone_only": cross_zone_only,
     }
-    filtered = apply_filters(_combined.copy(), params)
-    filtered = apply_topology_remap(filtered)
+    filtered = apply_topology_remap(_combined.copy())
+    filtered = apply_filters(filtered, params)
 
     if mode == "subnet":
         nodes, edges = aggregate_subnet(filtered, mask=subnet_mask)
@@ -288,6 +288,41 @@ async def get_summary():
     return compute_summary(_combined)
 
 
+@app.get("/api/events")
+async def get_events(
+    time_start: Optional[str] = Query(None),
+    time_end: Optional[str] = Query(None),
+    src_zone: Optional[str] = Query(None),
+    dst_zone: Optional[str] = Query(None),
+    src_ip: Optional[str] = Query(None),
+    dst_ip: Optional[str] = Query(None),
+    protocol: Optional[str] = Query(None),
+    dst_port: Optional[int] = Query(None),
+    action: Optional[str] = Query(None),
+    device_name: Optional[str] = Query(None),
+    cross_zone_only: bool = Query(False),
+    limit: int = Query(200),
+):
+    if _combined is None:
+        return {"events": [], "total": 0}
+    params = {
+        "time_start": time_start, "time_end": time_end,
+        "src_zone": src_zone, "dst_zone": dst_zone,
+        "src_ip": src_ip, "dst_ip": dst_ip,
+        "protocol": protocol, "dst_port": dst_port,
+        "action": action, "device_name": device_name,
+        "cross_zone_only": cross_zone_only,
+    }
+    filtered = apply_topology_remap(_combined.copy())
+    filtered = apply_filters(filtered, params)
+    cols = ["timestamp", "src_ip", "dst_ip", "src_zone", "dst_zone",
+            "action", "protocol", "dst_port", "bytes", "device_name"]
+    cols = [c for c in cols if c in filtered.columns]
+    rows = filtered[cols].head(limit)
+    rows = rows.where(pd.notna(rows), None)
+    return {"events": rows.to_dict(orient="records"), "total": len(filtered)}
+
+
 @app.get("/api/export")
 async def export_csv(
     mode: str = Query("host"),
@@ -314,8 +349,8 @@ async def export_csv(
         "action": action, "device_name": device_name,
         "cross_zone_only": cross_zone_only,
     }
-    filtered = apply_filters(_combined.copy(), params)
-    filtered = apply_topology_remap(filtered)
+    filtered = apply_topology_remap(_combined.copy())
+    filtered = apply_filters(filtered, params)
     buf = io.StringIO()
     filtered.to_csv(buf, index=False)
     buf.seek(0)

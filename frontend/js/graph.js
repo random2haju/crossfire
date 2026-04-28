@@ -221,6 +221,14 @@ function buildStylesheet() {
         'width': (ele) => Math.max(ele.data('weight'), 3) + 2,
       },
     },
+    {
+      selector: 'edge.flagged',
+      style: {
+        'line-shadow-blur': 12,
+        'line-shadow-color': '#ffc107',
+        'opacity': 1,
+      },
+    },
   ];
 }
 
@@ -298,6 +306,7 @@ function buildTooltip(el) {
     <div class="tt-row"><span class="tt-key">Services</span><span>${(d.protocols||[]).join(', ')}</span></div>
     <div class="tt-row"><span class="tt-key">Ports</span><span>${(d.ports||[]).slice(0,5).join(', ')}${(d.ports||[]).length > 5 ? '…' : ''}</span></div>
     ${(d.policies||[]).length ? `<div class="tt-row"><span class="tt-key">Policies</span><span>${(d.policies||[]).slice(0,2).join(', ')}${(d.policies||[]).length > 2 ? ' …' : ''}</span></div>` : ''}
+    ${(d.flags||[]).length ? `<div class="tt-row"><span class="tt-key" style="color:#ffc107">Flags</span><span style="color:#ffd54f">${d.flags.join(', ')}</span></div>` : ''}
   `;
 }
 
@@ -328,8 +337,34 @@ export function renderGraph(data) {
   cy.endBatch();
 
   applyColorMode(colorMode);
+  applyFlagClasses();
   runLayout();
   animation.restart();
+}
+
+function applyFlagClasses() {
+  cy.edges().forEach((edge) => {
+    const flags = edge.data('flags') || [];
+    edge.toggleClass('flagged', flags.length > 0);
+  });
+}
+
+export function filterByFlags(selectedFlags) {
+  cy.elements().show();
+  if (!selectedFlags || selectedFlags.length === 0) {
+    return { visibleCount: cy.edges().length };
+  }
+  cy.startBatch();
+  cy.edges().forEach((e) => {
+    const flags = e.data('flags') || [];
+    const matches = selectedFlags.some(f => flags.includes(f));
+    if (!matches) e.hide();
+  });
+  cy.nodes('[!isZone]').forEach((n) => {
+    if (n.connectedEdges(':visible').length === 0) n.hide();
+  });
+  cy.endBatch();
+  return { visibleCount: cy.edges(':visible').length };
 }
 
 function runLayout() {

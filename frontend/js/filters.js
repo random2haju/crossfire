@@ -52,7 +52,7 @@ export function getParams() {
     dst_zone: dst_zone || undefined,
     src_ip:   document.getElementById('f-src-ip')?.value.trim() || undefined,
     dst_ip:   document.getElementById('f-dst-ip')?.value.trim() || undefined,
-    protocol: document.getElementById('f-protocol')?.value || undefined,
+    protocol: getMultiSelectValues(document.getElementById('f-protocol')).join(',') || undefined,
     dst_port: document.getElementById('f-dst-port')?.value || undefined,
     action:   document.getElementById('f-action')?.value || undefined,
     device_name: document.getElementById('f-device')?.value.trim() || undefined,
@@ -81,12 +81,14 @@ export function resetFilters() {
     const el = document.getElementById(id);
     if (el) el.value = '';
   });
-  ['f-src-zone', 'f-dst-zone', 'f-protocol', 'f-action', 'f-cross-zone-pair'].forEach((id) => {
+  ['f-src-zone', 'f-dst-zone', 'f-protocol', 'f-action', 'f-cross-zone-pair', 'f-flag-types'].forEach((id) => {
     const el = document.getElementById(id);
     if (el) { el.value = ''; Array.from(el.options).forEach(o => o.selected = false); }
   });
   document.getElementById('f-subnet-mask').value = '24';
   document.getElementById('chk-cross-zone').checked = false;
+  const flagSummary = document.getElementById('unusual-flag-summary');
+  if (flagSummary) flagSummary.textContent = '';
   trigger();
 }
 

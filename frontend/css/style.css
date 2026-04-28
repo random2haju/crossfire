@@ -331,6 +331,17 @@ body {
 .badge-allow { background: rgba(76,175,80,0.2); color: #81c784; }
 .badge-deny  { background: rgba(244,67,54,0.2);  color: #ef9a9a; }
 .badge-drop  { background: rgba(255,152,0,0.2);  color: #ffcc80; }
+.badge-flag  { background: rgba(255,193,7,0.18); color: #ffd54f; border: 1px solid rgba(255,193,7,0.35); }
+
+.unusual-indicator {
+  display: inline-block;
+  width: 8px; height: 8px;
+  border-radius: 50%;
+  background: #ffc107;
+  box-shadow: 0 0 6px #ffc107;
+  flex-shrink: 0;
+}
+.flag-section-header { display: flex; align-items: center; gap: 6px; }
 
 /* ===== INSIGHTS PANEL ===== */
 .insight-section { margin-bottom: 16px; }

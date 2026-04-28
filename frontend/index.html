@@ -91,8 +91,7 @@
       <input type="text" id="f-dst-ip" placeholder="e.g. 10.10.1" />
 
       <label>Protocol</label>
-      <select id="f-protocol">
-        <option value="">All</option>
+      <select id="f-protocol" multiple size="4">
         <option value="TCP">TCP</option>
         <option value="UDP">UDP</option>
         <option value="ICMP">ICMP</option>
@@ -136,6 +135,24 @@
         <option value="IT,OT">IT → OT (suspicious)</option>
         <option value="OT,IT">OT → IT</option>
       </select>
+    </div>
+
+    <div class="sidebar-section">
+      <h3>Threat Hunting</h3>
+      <label>Flag Filter</label>
+      <select id="f-flag-types" multiple size="10">
+        <option value="zone-violation">zone-violation</option>
+        <option value="wan-to-ot">wan-to-ot</option>
+        <option value="direct-it-ot">direct-it-ot</option>
+        <option value="ot-initiates">ot-initiates</option>
+        <option value="ot-protocol-outside-ot">ot-protocol-outside-ot</option>
+        <option value="same-zone-risky-service">same-zone-risky-service</option>
+        <option value="high-fan-out">high-fan-out</option>
+        <option value="high-deny-ratio">high-deny-ratio</option>
+        <option value="risky-service">risky-service</option>
+        <option value="port-scan">port-scan</option>
+      </select>
+      <div id="unusual-flag-summary" style="margin-top:6px;font-size:11px;color:var(--text-muted)"></div>
     </div>
   </aside>
 

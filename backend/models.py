@@ -41,6 +41,7 @@ class EdgeData(BaseModel):
     allow_count: int = 0
     deny_count: int = 0
     weight: float = 1.0
+    flags: List[str] = []
 
 
 class GraphResponse(BaseModel):

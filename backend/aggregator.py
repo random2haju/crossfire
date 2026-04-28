@@ -33,7 +33,8 @@ def apply_filters(df: pd.DataFrame, params: dict) -> pd.DataFrame:
         df = df[df["dst_ip"].str.contains(params["dst_ip"], na=False)]
 
     if params.get("protocol"):
-        df = df[df["protocol"].str.upper() == params["protocol"].upper()]
+        protos = [p.strip().upper() for p in params["protocol"].split(",") if p.strip()]
+        df = df[df["protocol"].str.upper().isin(protos)]
 
     if params.get("dst_port"):
         df = df[df["dst_port"] == int(params["dst_port"])]
@@ -79,6 +80,57 @@ def _policy_fields(g: pd.DataFrame) -> dict:
     policyids = [p for p in policyids if p and p != "nan"]
     devices   = [d for d in devices   if d and d != "nan"]
     return {"policies": policies, "policyids": policyids, "devices": devices}
+
+
+_RISKY_PROTOCOLS = {"TELNET", "RDP", "SMB", "FTP", "SAMBA"}
+_LATERAL_PROTOCOLS = {"SMB", "RDP", "TELNET", "SAMBA"}
+_OT_PORTS = {502, 20000, 102, 2404, 44818, 4840}  # Modbus, DNP3, S7, IEC104, EtherNet/IP, OPC-UA
+
+
+def flag_edges(edge_rows: list) -> None:
+    for row in edge_rows:
+        flags = []
+        src = row.get("src_zone", "").upper()
+        dst = row.get("dst_zone", "").upper()
+        count = row.get("count", 0)
+        deny_count = row.get("deny_count", 0)
+        protocols = {p.upper() for p in row.get("protocols", [])}
+        ports = set(row.get("ports", []))
+
+        if src == "OT" and dst == "WAN":
+            flags.append("zone-violation")
+        if src == "WAN" and dst == "OT":
+            flags.append("wan-to-ot")
+        if (src == "IT" and dst == "OT") or (src == "OT" and dst == "IT"):
+            flags.append("direct-it-ot")
+        if src == "OT" and dst == "DMZ":
+            flags.append("ot-initiates")
+        if src != "OT" and dst != "OT" and ports & _OT_PORTS:
+            flags.append("ot-protocol-outside-ot")
+        if src == dst and src and protocols & _LATERAL_PROTOCOLS:
+            flags.append("same-zone-risky-service")
+        if count >= 5 and deny_count / count > 0.3:
+            flags.append("high-deny-ratio")
+        if protocols & _RISKY_PROTOCOLS:
+            flags.append("risky-service")
+        if len(ports) >= 5:
+            flags.append("port-scan")
+
+        row["flags"] = flags
+
+
+def flag_high_fan_out(edge_rows: list, src_field: str, dst_field: str, threshold: int = 4) -> None:
+    from collections import defaultdict
+    src_targets: dict = defaultdict(set)
+    for row in edge_rows:
+        src = row.get(src_field)
+        dst = row.get(dst_field)
+        if src and dst:
+            src_targets[src].add(dst)
+    high_fan_out = {s for s, dsts in src_targets.items() if len(dsts) >= threshold}
+    for row in edge_rows:
+        if row.get(src_field) in high_fan_out:
+            row["flags"].append("high-fan-out")
 
 
 def _zone_parent_id(zone: str) -> str:
@@ -139,6 +191,9 @@ def aggregate_host(df: pd.DataFrame) -> tuple[list[dict], list[dict]]:
             "weight": round(weight, 2),
         })
 
+    flag_edges(edge_rows)
+    flag_high_fan_out(edge_rows, "src_ip", "dst_ip")
+
     # Build node set
     node_map: dict[str, dict] = {}
     for row in edge_rows:
@@ -167,7 +222,7 @@ def aggregate_host(df: pd.DataFrame) -> tuple[list[dict], list[dict]]:
         "target": r["dst_ip"],
         **{k: r[k] for k in ("count", "bytes_total", "action", "protocol", "protocols",
                               "ports", "allow_count", "deny_count", "weight",
-                              "policies", "policyids", "devices")},
+                              "policies", "policyids", "devices", "flags")},
     }} for r in edge_rows]
 
     return nodes, edges
@@ -213,6 +268,9 @@ def aggregate_subnet(df: pd.DataFrame, mask: int = 24) -> tuple[list[dict], list
             **_policy_fields(g),
         })
 
+    flag_edges(edge_rows)
+    flag_high_fan_out(edge_rows, "src_subnet", "dst_subnet")
+
     node_map: dict[str, dict] = {}
     for row in edge_rows:
         for sub_key, zone_key in [("src_subnet", "src_zone"), ("dst_subnet", "dst_zone")]:
@@ -239,7 +297,7 @@ def aggregate_subnet(df: pd.DataFrame, mask: int = 24) -> tuple[list[dict], list
         "target": r["dst_subnet"],
         **{k: r[k] for k in ("count", "bytes_total", "action", "protocol", "protocols",
                               "ports", "allow_count", "deny_count", "weight",
-                              "policies", "policyids", "devices")},
+                              "policies", "policyids", "devices", "flags")},
     }} for r in edge_rows]
 
     return nodes, edges
@@ -290,6 +348,8 @@ def aggregate_zone(df: pd.DataFrame) -> tuple[list[dict], list[dict]]:
     all_counts = [e["count"] for e in edge_map.values()]
     mn, mx = (min(all_counts), max(all_counts)) if all_counts else (0, 0)
 
+    flag_edges(list(edge_map.values()))
+
     edges = []
     for (src_zone, dst_zone), row in edge_map.items():
         dominant_action = "allow" if row["allow_count"] >= row["deny_count"] else "deny"
@@ -312,6 +372,7 @@ def aggregate_zone(df: pd.DataFrame) -> tuple[list[dict], list[dict]]:
             "weight": weight,
             "policies":  sorted([p for p in row["policies"]  if p and p != "nan"]),
             "policyids": sorted([p for p in row["policyids"] if p and p != "nan"]),
+            "flags": row.get("flags", []),
         }})
 
     return zone_nodes, edges

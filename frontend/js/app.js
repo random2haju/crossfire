@@ -1,4 +1,4 @@
-import { initGraph, renderGraph, setColorMode, getCy } from './graph.js';
+import { initGraph, renderGraph, setColorMode, getCy, filterByFlags } from './graph.js';
 import { initFilters, getParams, resetFilters, populateFilterOptions } from './filters.js';
 import { animation } from './animation.js';
 import { exportCSV, exportPNG } from './export.js';
@@ -73,6 +73,16 @@ function bindToolbar() {
     exportCSV({ ...getParams(), mode: currentMode });
   });
   document.getElementById('btn-export-png').addEventListener('click', exportPNG);
+
+  // Flag type filter (client-side multi-select)
+  document.getElementById('f-flag-types')?.addEventListener('change', () => {
+    const sel = Array.from(document.getElementById('f-flag-types').selectedOptions).map(o => o.value);
+    const result = filterByFlags(sel);
+    const el = document.getElementById('unusual-flag-summary');
+    if (el) el.textContent = sel.length
+      ? `${result.visibleCount} edge${result.visibleCount !== 1 ? 's' : ''} shown`
+      : '';
+  });
 }
 
 // ── Detail tabs ──────────────────────────────────────────────────────
@@ -84,6 +94,7 @@ function bindDetailTabs() {
       document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
       btn.classList.add('active');
       document.getElementById(`tab-${tab}`).classList.add('active');
+      if (tab === 'insights') fetchSummary();
     });
   });
 }
@@ -121,8 +132,16 @@ async function fetchGraph(params = {}) {
     const qs = buildQS({ ...params, mode: currentMode });
     const res = await fetch(`/api/graph${qs}`);
     const data = await res.json();
+    // Reset flag filter on new data
+    const flagSel = document.getElementById('f-flag-types');
+    if (flagSel) Array.from(flagSel.options).forEach(o => o.selected = false);
+    const flagSummary = document.getElementById('unusual-flag-summary');
+    if (flagSummary) flagSummary.textContent = '';
     renderGraph(data);
     updateStatusBar(data);
+    if (document.getElementById('tab-insights')?.classList.contains('active')) {
+      fetchSummary();
+    }
   } catch (err) {
     console.error('Graph fetch error:', err);
   }
@@ -131,9 +150,14 @@ async function fetchGraph(params = {}) {
 // ── Summary fetch ────────────────────────────────────────────────────
 async function fetchSummary() {
   try {
-    const res = await fetch('/api/summary');
-    const data = await res.json();
-    renderInsights(data);
+    const qs = buildQS(getParams());
+    const [summaryRes, eventsRes] = await Promise.all([
+      fetch('/api/summary'),
+      fetch(`/api/events${qs}&limit=1`),
+    ]);
+    const summary = await summaryRes.json();
+    const eventsData = await eventsRes.json();
+    renderInsights(summary, eventsData);
   } catch (err) {
     console.error('Summary fetch error:', err);
   }
@@ -146,7 +170,9 @@ function updateStatusBar(data) {
   const cy = getCy();
   const nodes = cy?.nodes('[?parent]').length || cy?.nodes('[!isZone]').length || 0;
   const edges = cy?.edges().length || 0;
-  bar.textContent = `${data.record_count} events · ${nodes} nodes · ${edges} edges`;
+  const flagged = cy?.edges('.flagged').length || 0;
+  const flaggedStr = flagged > 0 ? ` · ${flagged} flagged` : '';
+  bar.textContent = `${data.record_count} events · ${nodes} nodes · ${edges} edges${flaggedStr}`;
 }
 
 // ── Click handlers ───────────────────────────────────────────────────
@@ -184,6 +210,12 @@ function handleEdgeClick(data) {
   placeholder.classList.add('hidden');
   content.classList.remove('hidden');
   const actionBadge = `<span class="badge badge-${data.action}">${data.action}</span>`;
+  const flags = data.flags || [];
+  const flagsHtml = flags.length ? `
+    <div class="detail-section">
+      <h4 class="flag-section-header"><span class="unusual-indicator"></span>Unusual Flags</h4>
+      <div class="tag-list">${flags.map(f => `<span class="badge badge-flag">${f}</span>`).join('')}</div>
+    </div>` : '';
   const allowPct = data.count > 0 ? Math.round(data.allow_count / data.count * 100) : 0;
   // Resolve firewall boundary context from topology map
   const boundaryHtml = (() => {
@@ -213,6 +245,7 @@ function handleEdgeClick(data) {
     </div>` : '';
 
   content.innerHTML = `
+    ${flagsHtml}
     <div class="detail-section">
       <h4>Flow</h4>
       <div class="detail-kv"><span class="key">Source</span><span class="val">${data.source}</span></div>
@@ -236,12 +269,40 @@ function handleEdgeClick(data) {
 }
 
 // ── Insights rendering ───────────────────────────────────────────────
-function renderInsights(data) {
+function renderInsights(data, eventsData = {}) {
   const el = document.getElementById('insights-content');
   if (!el) return;
 
   const crossZonePairs = Object.entries(data.cross_zone_totals || {});
   const maxCross = Math.max(...crossZonePairs.map(([,v]) => v), 1);
+
+  const events = eventsData.events || [];
+  const eventsTotal = eventsData.total ?? null;
+  const eventsHtml = `
+    <div class="insight-section">
+      <h4>Sample Event${eventsTotal !== null ? ` (${eventsTotal} total match filters)` : ''}</h4>
+      ${events.length === 0 ? '<p style="color:var(--text-muted);font-size:12px">No events match current filters.</p>' : `
+      <div style="overflow-x:auto;max-height:280px;overflow-y:auto">
+        <table class="insight-table" style="font-size:10px;white-space:nowrap;width:100%">
+          <thead><tr>
+            <th>Time</th><th>Src IP</th><th>Dst IP</th>
+            <th>Src Zone</th><th>Dst Zone</th><th>Action</th>
+            <th>Proto</th><th>Port</th><th>Bytes</th><th>Device</th>
+          </tr></thead>
+          <tbody>
+            ${events.map(r => `<tr>
+              <td>${r.timestamp ? String(r.timestamp).slice(0, 19) : '-'}</td>
+              <td>${r.src_ip || '-'}</td><td>${r.dst_ip || '-'}</td>
+              <td>${r.src_zone || '-'}</td><td>${r.dst_zone || '-'}</td>
+              <td><span class="badge badge-${r.action || 'unknown'}" style="font-size:9px;padding:1px 5px">${r.action || '-'}</span></td>
+              <td>${r.protocol || '-'}</td><td>${r.dst_port != null ? r.dst_port : '-'}</td>
+              <td>${r.bytes != null ? r.bytes : '-'}</td>
+              <td>${r.device_name || '-'}</td>
+            </tr>`).join('')}
+          </tbody>
+        </table>
+      </div>`}
+    </div>`;
 
   el.innerHTML = `
     <div class="insight-section">
@@ -300,6 +361,8 @@ function renderInsights(data) {
         ).join('')}
       </table>
     </div>` : ''}
+
+    ${eventsHtml}
   `;
 }
 
