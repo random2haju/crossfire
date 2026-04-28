@@ -142,13 +142,14 @@ async function fetchGraph(params = {}) {
     if (flagSummary) flagSummary.textContent = '';
     renderGraph(data);
     updateStatusBar(data);
-    updateHuntingTab();
     if (document.getElementById('tab-insights')?.classList.contains('active')) {
       fetchSummary();
     }
   } catch (err) {
     console.error('Graph fetch error:', err);
   }
+  // Outside try/catch so graph render errors don't suppress this
+  updateHuntingTab();
 }
 
 // ── Summary fetch ────────────────────────────────────────────────────
@@ -199,21 +200,27 @@ function updateFlagCounts() {
 
 // ── Hunting tab ──────────────────────────────────────────────────────
 function updateHuntingTab() {
-  const el = document.getElementById('hunting-detections');
-  if (!el) return;
-  const cy = getCy();
-  if (!cy) return;
+  try {
+    const el = document.getElementById('hunting-detections');
+    if (!el) { console.warn('hunting-detections element not found'); return; }
+    const cy = getCy();
+    if (!cy) { el.innerHTML = '<p style="font-size:12px;color:var(--text-muted)">Graph not ready.</p>'; return; }
 
-  const flaggedEdges = [];
-  cy.edges().forEach((e) => {
-    const flags = e.data('flags') || [];
-    if (flags.length > 0) flaggedEdges.push(e);
-  });
+    const allEdges = cy.edges().length;
+    const flaggedEdges = [];
+    cy.edges().forEach((e) => {
+      const flags = e.data('flags') || [];
+      if (flags.length > 0) flaggedEdges.push(e);
+    });
 
-  if (flaggedEdges.length === 0) {
-    el.innerHTML = '<p style="font-size:12px;color:var(--text-muted)">No flagged edges in current view.</p>';
-    return;
-  }
+    if (allEdges === 0) {
+      el.innerHTML = '<p style="font-size:12px;color:var(--text-muted)">Load data to see detections.</p>';
+      return;
+    }
+    if (flaggedEdges.length === 0) {
+      el.innerHTML = `<p style="font-size:12px;color:var(--text-muted)">No flagged edges among ${allEdges} edge${allEdges !== 1 ? 's' : ''} in current view.</p>`;
+      return;
+    }
 
   // Sort: most flags first
   flaggedEdges.sort((a, b) => (b.data('flags') || []).length - (a.data('flags') || []).length);
@@ -262,6 +269,11 @@ function updateHuntingTab() {
     item.addEventListener('mouseenter', () => { item.style.borderColor = '#ffc107'; });
     item.addEventListener('mouseleave', () => { item.style.borderColor = 'var(--border)'; });
   });
+  } catch (err) {
+    console.error('updateHuntingTab error:', err);
+    const el = document.getElementById('hunting-detections');
+    if (el) el.innerHTML = `<p style="font-size:12px;color:#ef9a9a">Error building detections list — check console.</p>`;
+  }
 }
 
 // ── Click handlers ───────────────────────────────────────────────────
