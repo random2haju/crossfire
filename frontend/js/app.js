@@ -95,6 +95,7 @@ function bindDetailTabs() {
       btn.classList.add('active');
       document.getElementById(`tab-${tab}`).classList.add('active');
       if (tab === 'insights') fetchSummary();
+      if (tab === 'hunting') updateHuntingTab();
     });
   });
 }
@@ -142,6 +143,9 @@ async function fetchGraph(params = {}) {
     if (document.getElementById('tab-insights')?.classList.contains('active')) {
       fetchSummary();
     }
+    if (document.getElementById('tab-hunting')?.classList.contains('active')) {
+      updateHuntingTab();
+    }
   } catch (err) {
     console.error('Graph fetch error:', err);
   }
@@ -174,6 +178,9 @@ function updateStatusBar(data) {
   const flaggedStr = flagged > 0 ? ` · ${flagged} flagged` : '';
   bar.textContent = `${data.record_count} events · ${nodes} nodes · ${edges} edges${flaggedStr}`;
   updateFlagCounts();
+  if (document.getElementById('tab-hunting')?.classList.contains('active')) {
+    updateHuntingTab();
+  }
 }
 
 function updateFlagCounts() {
@@ -190,6 +197,71 @@ function updateFlagCounts() {
     opt.textContent = `${opt.value} (${n})`;
     opt.disabled = n === 0;
     opt.style.color = n > 0 ? '' : 'var(--text-muted)';
+  });
+}
+
+// ── Hunting tab ──────────────────────────────────────────────────────
+function updateHuntingTab() {
+  const el = document.getElementById('hunting-detections');
+  if (!el) return;
+  const cy = getCy();
+  if (!cy) return;
+
+  const flaggedEdges = [];
+  cy.edges().forEach((e) => {
+    const flags = e.data('flags') || [];
+    if (flags.length > 0) flaggedEdges.push(e);
+  });
+
+  if (flaggedEdges.length === 0) {
+    el.innerHTML = '<p style="font-size:12px;color:var(--text-muted)">No flagged edges in current view.</p>';
+    return;
+  }
+
+  // Sort: most flags first
+  flaggedEdges.sort((a, b) => (b.data('flags') || []).length - (a.data('flags') || []).length);
+
+  el.innerHTML = `
+    <h3 style="font-size:11px;font-weight:600;text-transform:uppercase;color:var(--text-muted);letter-spacing:.06em;margin-bottom:8px">
+      Detections (${flaggedEdges.length})
+    </h3>
+    ${flaggedEdges.map((e) => {
+      const d = e.data();
+      const flagBadges = (d.flags || []).map(f => `<span class="badge badge-flag" style="font-size:9px;padding:1px 5px">${f}</span>`).join(' ');
+      return `
+        <div class="hunting-item" data-edge-id="${d.id}" style="
+          padding:8px;margin-bottom:6px;border-radius:4px;
+          background:var(--surface);border:1px solid var(--border);
+          cursor:pointer;transition:border-color .15s
+        ">
+          <div style="margin-bottom:4px">${flagBadges}</div>
+          <div style="font-size:11px;font-family:monospace;color:var(--text-primary)">
+            ${d.source} → ${d.target}
+          </div>
+          <div style="font-size:10px;color:var(--text-muted);margin-top:2px">
+            ${d.count} events · ${d.allow_count} allow / ${d.deny_count} deny
+          </div>
+        </div>`;
+    }).join('')}
+  `;
+
+  // Wire click: select edge in graph + switch to Details
+  el.querySelectorAll('.hunting-item').forEach((item) => {
+    item.addEventListener('click', () => {
+      const edge = cy.getElementById(item.dataset.edgeId);
+      if (!edge.length) return;
+      cy.elements().unselect();
+      edge.select();
+      cy.animate({ center: { eles: edge }, zoom: Math.max(cy.zoom(), 1.2) }, { duration: 300 });
+      // Switch to Details tab and populate it
+      document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+      document.querySelectorAll('.tab-content').forEach(c => c.classList.remove('active'));
+      document.querySelector('.tab-btn[data-tab="details"]').classList.add('active');
+      document.getElementById('tab-details').classList.add('active');
+      handleEdgeClick(edge.data());
+    });
+    item.addEventListener('mouseenter', () => { item.style.borderColor = '#ffc107'; });
+    item.addEventListener('mouseleave', () => { item.style.borderColor = 'var(--border)'; });
   });
 }
 

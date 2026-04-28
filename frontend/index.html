@@ -137,23 +137,6 @@
       </select>
     </div>
 
-    <div class="sidebar-section">
-      <h3>Threat Hunting</h3>
-      <label>Flag Filter</label>
-      <select id="f-flag-types" multiple size="10">
-        <option value="zone-violation">zone-violation</option>
-        <option value="wan-to-ot">wan-to-ot</option>
-        <option value="direct-it-ot">direct-it-ot</option>
-        <option value="ot-initiates">ot-initiates</option>
-        <option value="ot-protocol-outside-ot">ot-protocol-outside-ot</option>
-        <option value="same-zone-risky-service">same-zone-risky-service</option>
-        <option value="high-fan-out">high-fan-out</option>
-        <option value="high-deny-ratio">high-deny-ratio</option>
-        <option value="risky-service">risky-service</option>
-        <option value="port-scan">port-scan</option>
-      </select>
-      <div id="unusual-flag-summary" style="margin-top:6px;font-size:11px;color:var(--text-muted)"></div>
-    </div>
   </aside>
 
   <!-- GRAPH CANVAS -->
@@ -173,11 +156,12 @@
     </div>
   </main>
 
-  <!-- RIGHT PANEL: DETAILS + INSIGHTS -->
+  <!-- RIGHT PANEL: DETAILS + INSIGHTS + HUNTING -->
   <aside class="sidebar-right">
     <div class="tab-bar">
       <button class="tab-btn active" data-tab="details">Details</button>
       <button class="tab-btn" data-tab="insights">Insights</button>
+      <button class="tab-btn" data-tab="hunting">Hunting</button>
     </div>
 
     <div id="tab-details" class="tab-content active">
@@ -190,6 +174,29 @@
     <div id="tab-insights" class="tab-content hidden">
       <div id="insights-content">
         <p class="muted">Load data to see insights</p>
+      </div>
+    </div>
+
+    <div id="tab-hunting" class="tab-content hidden">
+      <div class="sidebar-section" style="border-bottom:1px solid var(--border);padding-bottom:12px;margin-bottom:12px">
+        <h3 style="margin-bottom:8px">Flag Filter</h3>
+        <p style="font-size:11px;color:var(--text-muted);margin-bottom:6px">Select flags to highlight matching edges. Counts update after data loads.</p>
+        <select id="f-flag-types" multiple size="10" style="width:100%">
+          <option value="zone-violation">zone-violation</option>
+          <option value="wan-to-ot">wan-to-ot</option>
+          <option value="direct-it-ot">direct-it-ot</option>
+          <option value="ot-initiates">ot-initiates</option>
+          <option value="ot-protocol-outside-ot">ot-protocol-outside-ot</option>
+          <option value="same-zone-risky-service">same-zone-risky-service</option>
+          <option value="high-fan-out">high-fan-out</option>
+          <option value="high-deny-ratio">high-deny-ratio</option>
+          <option value="risky-service">risky-service</option>
+          <option value="port-scan">port-scan</option>
+        </select>
+        <div id="unusual-flag-summary" style="margin-top:6px;font-size:11px;color:var(--text-muted)"></div>
+      </div>
+      <div id="hunting-detections">
+        <p style="font-size:12px;color:var(--text-muted)">Load data to see detections</p>
       </div>
     </div>
   </aside>
