@@ -142,11 +142,9 @@ async function fetchGraph(params = {}) {
     if (flagSummary) flagSummary.textContent = '';
     renderGraph(data);
     updateStatusBar(data);
+    updateHuntingTab();
     if (document.getElementById('tab-insights')?.classList.contains('active')) {
       fetchSummary();
-    }
-    if (document.getElementById('tab-hunting')?.classList.contains('active')) {
-      updateHuntingTab();
     }
   } catch (err) {
     console.error('Graph fetch error:', err);
@@ -158,7 +156,7 @@ async function fetchSummary() {
   try {
     const qs = buildQS(getParams());
     const [summaryRes, eventsRes] = await Promise.all([
-      fetch('/api/summary'),
+      fetch(`/api/summary${qs}`),
       fetch(`/api/events${qs}&limit=1`),
     ]);
     const summary = await summaryRes.json();
@@ -180,9 +178,6 @@ function updateStatusBar(data) {
   const flaggedStr = flagged > 0 ? ` · ${flagged} flagged` : '';
   bar.textContent = `${data.record_count} events · ${nodes} nodes · ${edges} edges${flaggedStr}`;
   updateFlagCounts();
-  if (document.getElementById('tab-hunting')?.classList.contains('active')) {
-    updateHuntingTab();
-  }
 }
 
 function updateFlagCounts() {

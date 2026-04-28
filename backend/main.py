@@ -284,8 +284,32 @@ async def debug_log(lines: int = 80):
 
 
 @app.get("/api/summary")
-async def get_summary():
-    return compute_summary(_combined)
+async def get_summary(
+    time_start: Optional[str] = Query(None),
+    time_end: Optional[str] = Query(None),
+    src_zone: Optional[str] = Query(None),
+    dst_zone: Optional[str] = Query(None),
+    src_ip: Optional[str] = Query(None),
+    dst_ip: Optional[str] = Query(None),
+    protocol: Optional[str] = Query(None),
+    dst_port: Optional[int] = Query(None),
+    action: Optional[str] = Query(None),
+    device_name: Optional[str] = Query(None),
+    cross_zone_only: bool = Query(False),
+):
+    if _combined is None:
+        return compute_summary(None)
+    params = {
+        "time_start": time_start, "time_end": time_end,
+        "src_zone": src_zone, "dst_zone": dst_zone,
+        "src_ip": src_ip, "dst_ip": dst_ip,
+        "protocol": protocol, "dst_port": dst_port,
+        "action": action, "device_name": device_name,
+        "cross_zone_only": cross_zone_only,
+    }
+    filtered = apply_topology_remap(_combined.copy())
+    filtered = apply_filters(filtered, params)
+    return compute_summary(filtered)
 
 
 @app.get("/api/events")
