@@ -221,14 +221,6 @@ function buildStylesheet() {
         'width': (ele) => Math.max(ele.data('weight'), 3) + 2,
       },
     },
-    {
-      selector: 'edge.flagged',
-      style: {
-        'line-shadow-blur': 12,
-        'line-shadow-color': '#ffc107',
-        'opacity': 1,
-      },
-    },
   ];
 }
 
@@ -345,7 +337,13 @@ export function renderGraph(data) {
 function applyFlagClasses() {
   cy.edges().forEach((edge) => {
     const flags = edge.data('flags') || [];
-    edge.toggleClass('flagged', flags.length > 0);
+    if (flags.length > 0) {
+      edge.addClass('flagged');
+      // Inline style wins over stylesheet — apply amber on top of color mode
+      edge.style({ 'line-color': '#ffc107', 'target-arrow-color': '#ffc107' });
+    } else {
+      edge.removeClass('flagged');
+    }
   });
 }
 
@@ -360,7 +358,7 @@ export function filterByFlags(selectedFlags) {
     const matches = selectedFlags.some(f => flags.includes(f));
     if (!matches) e.hide();
   });
-  cy.nodes('[!isZone]').forEach((n) => {
+  cy.nodes(':child').forEach((n) => {
     if (n.connectedEdges(':visible').length === 0) n.hide();
   });
   cy.endBatch();
@@ -432,6 +430,7 @@ function runLayout() {
 export function setColorMode(mode) {
   colorMode = mode;
   applyColorMode(mode);
+  applyFlagClasses();
 }
 
 function applyColorMode(mode) {

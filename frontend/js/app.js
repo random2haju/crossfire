@@ -173,6 +173,24 @@ function updateStatusBar(data) {
   const flagged = cy?.edges('.flagged').length || 0;
   const flaggedStr = flagged > 0 ? ` · ${flagged} flagged` : '';
   bar.textContent = `${data.record_count} events · ${nodes} nodes · ${edges} edges${flaggedStr}`;
+  updateFlagCounts();
+}
+
+function updateFlagCounts() {
+  const cy = getCy();
+  if (!cy) return;
+  const counts = {};
+  cy.edges().forEach((e) => {
+    (e.data('flags') || []).forEach((f) => { counts[f] = (counts[f] || 0) + 1; });
+  });
+  const sel = document.getElementById('f-flag-types');
+  if (!sel) return;
+  Array.from(sel.options).forEach((opt) => {
+    const n = counts[opt.value] || 0;
+    opt.textContent = `${opt.value} (${n})`;
+    opt.disabled = n === 0;
+    opt.style.color = n > 0 ? '' : 'var(--text-muted)';
+  });
 }
 
 // ── Click handlers ───────────────────────────────────────────────────
