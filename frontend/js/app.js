@@ -1,4 +1,4 @@
-import { initGraph, renderGraph, setColorMode, getCy, filterByFlags } from './graph.js';
+import { initGraph, renderGraph, setColorMode, getCy, filterByFlags, setFlagHighlight } from './graph.js';
 import { initFilters, getParams, resetFilters, populateFilterOptions } from './filters.js';
 import { animation } from './animation.js';
 import { exportCSV, exportPNG } from './export.js';
@@ -59,6 +59,11 @@ function bindToolbar() {
   document.getElementById('chk-animate').addEventListener('change', (e) => {
     animation.setEnabled(e.target.checked);
     document.getElementById('speed-control').style.opacity = e.target.checked ? '1' : '0.4';
+  });
+
+  // Detection highlight toggle
+  document.getElementById('chk-detections').addEventListener('change', (e) => {
+    setFlagHighlight(e.target.checked);
   });
 
   // Animation speed slider

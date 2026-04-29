@@ -3,6 +3,7 @@ import { animation } from './animation.js';
 
 let cy = null;
 let colorMode = 'action'; // 'action' | 'protocol'
+let flagHighlightEnabled = true;
 
 // ── Color palettes ──────────────────────────────────────────────────
 const ACTION_COLORS = {
@@ -337,14 +338,19 @@ export function renderGraph(data) {
 function applyFlagClasses() {
   cy.edges().forEach((edge) => {
     const flags = edge.data('flags') || [];
-    if (flags.length > 0) {
+    if (flags.length > 0 && flagHighlightEnabled) {
       edge.addClass('flagged');
-      // Inline style wins over stylesheet — apply amber on top of color mode
       edge.style({ 'line-color': '#ffc107', 'target-arrow-color': '#ffc107' });
     } else {
       edge.removeClass('flagged');
     }
   });
+}
+
+export function setFlagHighlight(enabled) {
+  flagHighlightEnabled = enabled;
+  applyColorMode(colorMode);
+  applyFlagClasses();
 }
 
 export function filterByFlags(selectedFlags) {
